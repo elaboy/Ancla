@@ -1,0 +1,129 @@
+﻿@model Ancla.Models.PSM
+
+@{
+    ViewData["Title"] = "Edit";
+}
+
+<h1>Edit</h1>
+
+<h4>PSM</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="Edit">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <input type="hidden" asp-for="Id" />
+            <div class="form-group">
+                <label asp-for="FileName" class="control-label"></label>
+                <input asp-for="FileName" class="form-control" />
+                <span asp-validation-for="FileName" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ScanNumber" class="control-label"></label>
+                <input asp-for="ScanNumber" class="form-control" />
+                <span asp-validation-for="ScanNumber" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ScanRetentionTime" class="control-label"></label>
+                <input asp-for="ScanRetentionTime" class="form-control" />
+                <span asp-validation-for="ScanRetentionTime" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="TotalIonCurrent" class="control-label"></label>
+                <input asp-for="TotalIonCurrent" class="form-control" />
+                <span asp-validation-for="TotalIonCurrent" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PrecursorCharge" class="control-label"></label>
+                <input asp-for="PrecursorCharge" class="form-control" />
+                <span asp-validation-for="PrecursorCharge" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PrecursorMZ" class="control-label"></label>
+                <input asp-for="PrecursorMZ" class="form-control" />
+                <span asp-validation-for="PrecursorMZ" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PrecursorMass" class="control-label"></label>
+                <input asp-for="PrecursorMass" class="form-control" />
+                <span asp-validation-for="PrecursorMass" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Score" class="control-label"></label>
+                <input asp-for="Score" class="form-control" />
+                <span asp-validation-for="Score" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="BaseSequence" class="control-label"></label>
+                <input asp-for="BaseSequence" class="form-control" />
+                <span asp-validation-for="BaseSequence" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="FullSequence" class="control-label"></label>
+                <input asp-for="FullSequence" class="form-control" />
+                <span asp-validation-for="FullSequence" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="AmbiguityLevel" class="control-label"></label>
+                <input asp-for="AmbiguityLevel" class="form-control" />
+                <span asp-validation-for="AmbiguityLevel" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PeptideMonoisotopicMass" class="control-label"></label>
+                <input asp-for="PeptideMonoisotopicMass" class="form-control" />
+                <span asp-validation-for="PeptideMonoisotopicMass" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ProteinAccession" class="control-label"></label>
+                <input asp-for="ProteinAccession" class="form-control" />
+                <span asp-validation-for="ProteinAccession" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ProteinName" class="control-label"></label>
+                <input asp-for="ProteinName" class="form-control" />
+                <span asp-validation-for="ProteinName" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="GeneName" class="control-label"></label>
+                <input asp-for="GeneName" class="form-control" />
+                <span asp-validation-for="GeneName" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="OrganismName" class="control-label"></label>
+                <input asp-for="OrganismName" class="form-control" />
+                <span asp-validation-for="OrganismName" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="StartAndEndResidueInProtein" class="control-label"></label>
+                <input asp-for="StartAndEndResidueInProtein" class="form-control" />
+                <span asp-validation-for="StartAndEndResidueInProtein" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PEP" class="control-label"></label>
+                <input asp-for="PEP" class="form-control" />
+                <span asp-validation-for="PEP" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="QValue" class="control-label"></label>
+                <input asp-for="QValue" class="form-control" />
+                <span asp-validation-for="QValue" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PEPQvalue" class="control-label"></label>
+                <input asp-for="PEPQvalue" class="form-control" />
+                <span asp-validation-for="PEPQvalue" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <input type="submit" value="Save" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

@@ -1,0 +1,149 @@
+﻿@model IEnumerable<Ancla.Models.PSM>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Index</h1>
+
+<p>
+    <a asp-action="AddPsm">Submit PSM</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.FileName)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.ScanNumber)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.ScanRetentionTime)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.TotalIonCurrent)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.PrecursorCharge)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.PrecursorMZ)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.PrecursorMass)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Score)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.BaseSequence)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.FullSequence)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.AmbiguityLevel)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.PeptideMonoisotopicMass)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.ProteinAccession)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.ProteinName)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.GeneName)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.OrganismName)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.StartAndEndResidueInProtein)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.PEP)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.QValue)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.PEPQvalue)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.FileName)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.ScanNumber)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.ScanRetentionTime)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.TotalIonCurrent)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.PrecursorCharge)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.PrecursorMZ)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.PrecursorMass)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Score)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.BaseSequence)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.FullSequence)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.AmbiguityLevel)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.PeptideMonoisotopicMass)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.ProteinAccession)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.ProteinName)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.GeneName)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.OrganismName)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.StartAndEndResidueInProtein)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.PEP)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.QValue)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.PEPQvalue)
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
+                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
+                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>
