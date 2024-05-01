@@ -23,5 +23,33 @@ public class TestDbOperations
         }
 
     }
+
+    [Test]
+    public void TestAddPsms()
+    {
+        var psmFilePath = new List<string>()
+        {
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\A549_AllPeptides.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\GAMG_AllPeptides.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\HEK293_AllPeptides.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\Hela_AllPeptides.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\HepG2AllPeptides.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\Jurkat_AllPeptides.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\LanCap_AllPeptides.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\MCF7_AllPeptides.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\RKO_AllPeptides.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\U2OS_AllPeptides.psmtsv",
+
+        };
+        var psms = PsmService.GetPsms(psmFilePath);
+
+        var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
+        optionsBuilder.UseSqlite(DbOperations.ConnectionString);
+
+        using (var context = new PsmContext(optionsBuilder.Options))
+        {
+            DbOperations.AddPsms(context, psms);
+        }
+    }
 }
 
