@@ -3,9 +3,9 @@ using MySql.EntityFrameworkCore.Metadata;
 
 #nullable disable
 
-namespace Ancla.Migrations
+namespace Database.Migrations
 {
-    public partial class InitDB : Migration
+    public partial class InitDb : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -19,7 +19,7 @@ namespace Ancla.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySQL:ValueGenerationStrategy", MySQLValueGenerationStrategy.IdentityColumn),
                     FileName = table.Column<string>(type: "longtext", nullable: false),
-                    ScanNumber = table.Column<int>(type: "int", nullable: false),
+                    PrecursorScanNumber = table.Column<int>(type: "int", nullable: false),
                     ScanRetentionTime = table.Column<double>(type: "double", nullable: false),
                     TotalIonCurrent = table.Column<double>(type: "double", nullable: false),
                     PrecursorCharge = table.Column<int>(type: "int", nullable: false),

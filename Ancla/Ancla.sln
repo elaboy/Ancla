@@ -9,6 +9,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnchorCommandLine", "Anchor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnchorLib", "AnchorLib\AnchorLib.csproj", "{A22E7BC0-6973-4C10-BCE6-B804A4668B51}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Database", "Database\Database.csproj", "{C8D11AAF-1A51-47F1-9287-95DE9F724528}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A22E7BC0-6973-4C10-BCE6-B804A4668B51} = {A22E7BC0-6973-4C10-BCE6-B804A4668B51}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +32,10 @@ Global
 		{A22E7BC0-6973-4C10-BCE6-B804A4668B51}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A22E7BC0-6973-4C10-BCE6-B804A4668B51}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A22E7BC0-6973-4C10-BCE6-B804A4668B51}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8D11AAF-1A51-47F1-9287-95DE9F724528}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8D11AAF-1A51-47F1-9287-95DE9F724528}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8D11AAF-1A51-47F1-9287-95DE9F724528}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8D11AAF-1A51-47F1-9287-95DE9F724528}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

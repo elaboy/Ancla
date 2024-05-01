@@ -18,4 +18,9 @@
     <PackageReference Include="mzLib" Version="1.0.547" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\AnchorLib\AnchorLib.csproj" />
+    <ProjectReference Include="..\Database\Database.csproj" />
+  </ItemGroup>
+
 </Project>
