@@ -5,7 +5,7 @@ using MySql.EntityFrameworkCore.Metadata;
 
 namespace Database.Migrations
 {
-    public partial class InitDb : Migration
+    public partial class InitialCreate : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {

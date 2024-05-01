@@ -1,18 +1,9 @@
 ﻿using AnchorLib;
-using Database;
-using Microsoft.EntityFrameworkCore;
 using Readers;
 namespace Database;
 public class PsmService
 {
-    private readonly PsmContext _context;
-
-    public PsmService(PsmContext context)
-    {
-        _context = context;
-    }
-
-    public List<PSM> GetPsms(List<string> paths)
+    public static List<PSM> GetPsms(List<string> paths)
     {
         List<PSM> psms = new List<PSM>();
 

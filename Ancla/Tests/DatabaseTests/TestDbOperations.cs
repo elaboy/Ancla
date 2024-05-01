@@ -1,22 +1,20 @@
-﻿using AnchorLib;
+﻿using AnchorCommandLine;
 using Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
-namespace AnchorCommandLine;
-
-public class Program
+namespace Tests.DatabaseTests;
+public class TestDbOperations
 {
-    public static void Main(string[] args)
+    [Test]
+    public void TestAddPsm()
     {
-        List<string> paths = new List<string>();
-
-        foreach (var arg in args)
+        var psmFilePath = new List<string>()
         {
-            paths.Add(arg);
-        }
+            Path.Combine(TestContext.CurrentContext.TestDirectory, "ExcelEditedPeptide.psmtsv")
+        };
+        var psm = PsmService.GetPsms(psmFilePath);
 
-        // get the configuration from the appsettings.json file
         var builder = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: false);
@@ -31,12 +29,9 @@ public class Program
 
         using (var context = new PsmContext(optionsBuilder.Options))
         {
-            var psms = PsmService.GetPsms(paths);
+            DbOperations.AddPsm(psm[0], context);
         }
+
     }
 }
 
-public class DatabaseConnection
-{
-    public string ConnectionString { get; set; }
-}
