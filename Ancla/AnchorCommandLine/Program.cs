@@ -27,7 +27,7 @@ public class Program
             .Get<DatabaseConnection>();
 
         var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
-        optionsBuilder.UseMySQL(connectionString.ConnectionString);
+        optionsBuilder.UseSqlite(connectionString.ConnectionString);
 
         using (var context = new PsmContext(optionsBuilder.Options))
         {

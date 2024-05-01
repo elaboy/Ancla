@@ -11,5 +11,9 @@ public class PsmContext : DbContext
 
     }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder options)
+
+        => options.UseSqlite();
+
     public DbSet<PSM> PSMs { get; set; }
 }

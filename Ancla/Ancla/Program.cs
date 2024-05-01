@@ -1,4 +1,3 @@
-using Ancla.Models;
 using Database;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +8,7 @@ builder.Services.AddControllersWithViews();
 
 // dependency injection
 builder.Services.AddDbContext<PsmContext>(options =>
-       options.UseMySQL(builder.Configuration.GetConnectionString("DefaultConnection")));
+       options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
