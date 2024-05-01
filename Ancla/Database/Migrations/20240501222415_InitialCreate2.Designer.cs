@@ -10,8 +10,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Database.Migrations
 {
     [DbContext(typeof(PsmContext))]
-    [Migration("20240501211924_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20240501222415_InitialCreate2")]
+    partial class InitialCreate2
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
@@ -41,6 +41,14 @@ namespace Database.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GeneName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MassErrorDaltons")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notch")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

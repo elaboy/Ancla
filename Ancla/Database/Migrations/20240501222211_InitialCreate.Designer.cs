@@ -2,6 +2,7 @@
 using Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -9,9 +10,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Database.Migrations
 {
     [DbContext(typeof(PsmContext))]
-    partial class PsmContextModelSnapshot : ModelSnapshot
+    [Migration("20240501222211_InitialCreate")]
+    partial class InitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "6.0.29");
@@ -42,13 +44,11 @@ namespace Database.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("MassErrorDaltons")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                    b.Property<double>("MassErrorDaltons")
+                        .HasColumnType("REAL");
 
-                    b.Property<string>("Notch")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                    b.Property<int>("Notch")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("OrganismName")
                         .IsRequired()

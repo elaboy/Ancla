@@ -5,6 +5,11 @@ namespace Database;
 
 public class PsmContext : DbContext
 {
+    public PsmContext()
+    {
+        
+    }
+
     public PsmContext(DbContextOptions<PsmContext> options)
         : base(options)
     {
@@ -12,8 +17,7 @@ public class PsmContext : DbContext
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder options)
-
-        => options.UseSqlite();
+        => options.UseSqlite(DbOperations.ConnectionString);
 
     public DbSet<PSM> PSMs { get; set; }
 }

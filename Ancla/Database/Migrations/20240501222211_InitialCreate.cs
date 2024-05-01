@@ -19,6 +19,7 @@ namespace Database.Migrations
                     ScanRetentionTime = table.Column<double>(type: "REAL", nullable: false),
                     TotalIonCurrent = table.Column<double>(type: "REAL", nullable: false),
                     PrecursorCharge = table.Column<int>(type: "INTEGER", nullable: false),
+                    Notch = table.Column<int>(type: "INTEGER", nullable: false),
                     PrecursorMZ = table.Column<double>(type: "REAL", nullable: false),
                     PrecursorMass = table.Column<double>(type: "REAL", nullable: false),
                     Score = table.Column<double>(type: "REAL", nullable: false),
@@ -31,6 +32,7 @@ namespace Database.Migrations
                     GeneName = table.Column<string>(type: "TEXT", nullable: false),
                     OrganismName = table.Column<string>(type: "TEXT", nullable: false),
                     StartAndEndResidueInProtein = table.Column<string>(type: "TEXT", nullable: false),
+                    MassErrorDaltons = table.Column<double>(type: "REAL", nullable: false),
                     PEP = table.Column<double>(type: "REAL", nullable: false),
                     QValue = table.Column<double>(type: "REAL", nullable: false),
                     PEPQvalue = table.Column<double>(type: "REAL", nullable: false)

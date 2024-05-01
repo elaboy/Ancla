@@ -16,18 +16,8 @@ public class Program
             paths.Add(arg);
         }
 
-        // get the configuration from the appsettings.json file
-        var builder = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: false);
-
-        IConfiguration config = builder.Build();
-
-        var connectionString = config.GetSection("DatabaseConnection")
-            .Get<DatabaseConnection>();
-
         var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
-        optionsBuilder.UseSqlite(connectionString.ConnectionString);
+        optionsBuilder.UseSqlite(DbOperations.ConnectionString);
 
         using (var context = new PsmContext(optionsBuilder.Options))
         {

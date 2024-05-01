@@ -4,8 +4,8 @@ namespace Database;
 
 public static class DbOperations
 {
-    //public static string ConnectionString = 
-    public static void AddPsms(List<PSM> psms, PsmContext context)
+    public static string ConnectionString = @"Data Source = D:\anchor.db";
+    public static void AddPsms(PsmContext context, List<PSM> psms)
     {
         foreach (var psm in psms)
         {
@@ -14,7 +14,7 @@ public static class DbOperations
         context.SaveChanges();
     }
 
-    public static void AddPsm(PSM psm, PsmContext context)
+    public static void AddPsm(PsmContext context, PSM psm)
     {
         context.Add(psm);
         context.SaveChanges();

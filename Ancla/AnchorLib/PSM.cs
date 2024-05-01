@@ -15,6 +15,9 @@ public class PSM
     public double ScanRetentionTime { get; set; }
     public double TotalIonCurrent { get; set; }
     public int PrecursorCharge { get; set; }
+    //public double PrecursorIntensity { get; set; }
+    public string Notch { get; set; }
+
     public double PrecursorMZ { get; set; }
     public double PrecursorMass { get; set; }
     public double Score { get; set; }
@@ -28,6 +31,7 @@ public class PSM
     public string GeneName { get; set; }
     public string OrganismName { get; set; }
     public string StartAndEndResidueInProtein { get; set; }
+    public string MassErrorDaltons { get; set; }
     //public string MatchedIonSeries { get; set; }
     //public string MatchedIonMassToChargeRatios { get; set; }
     //public string MatchedIonIntensities { get; set; }
@@ -47,6 +51,8 @@ public class PSM
         ScanRetentionTime = psmFromTsv.RetentionTime.Value;
         TotalIonCurrent = psmFromTsv.TotalIonCurrent.Value;
         PrecursorCharge = psmFromTsv.PrecursorCharge;
+        //PrecursorIntensity = psmFromTsv.;
+        Notch = psmFromTsv.Notch;
         PrecursorMZ = psmFromTsv.PrecursorMz;
         PrecursorMass = psmFromTsv.PrecursorMass;
         Score = psmFromTsv.Score;
@@ -59,6 +65,7 @@ public class PSM
         GeneName = psmFromTsv.GeneName;
         OrganismName = psmFromTsv.OrganismName;
         StartAndEndResidueInProtein = psmFromTsv.StartAndEndResiduesInProtein;
+        MassErrorDaltons = psmFromTsv.MassDiffDa;
         PEP = psmFromTsv.PEP;
         QValue = psmFromTsv.QValue;
         PEPQvalue = psmFromTsv.PEP_QValue;

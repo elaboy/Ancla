@@ -8,7 +8,7 @@ builder.Services.AddControllersWithViews();
 
 // dependency injection
 builder.Services.AddDbContext<PsmContext>(options =>
-       options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+       options.UseSqlite(DbOperations.ConnectionString));
 
 var app = builder.Build();
 
