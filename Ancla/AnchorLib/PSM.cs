@@ -1,14 +1,16 @@
 ﻿using Proteomics.PSM;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace AnchorLib;
+
+[Index("FileName", "FullSequence", IsUnique = true)]
 public class PSM
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int Id { get; set; }
-
     public string FileName { get; set; }
     //public int ScanNumber { get; set; }
     public int PrecursorScanNumber { get; set; }
