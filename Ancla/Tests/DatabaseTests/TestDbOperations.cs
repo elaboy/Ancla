@@ -77,4 +77,16 @@ public class TestDbOperations
             DbOperations.AddPsmsNonRedundant(context, psms);
         }
     }
+
+    [Test]
+    public void TestFetchAnchors()
+    {
+        using (var context = new PsmContext())
+        {
+            var anchors = DbOperations.FetchAnchors(context, true);
+            Assert.That(anchors.Count > 0);
+        }
+    }
+
+
 }
