@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AnchorLib;
 
-[Index("FileName", "FullSequence", IsUnique = true)]
+//[Index("FileName", "FullSequence", IsUnique = true)]
 public class PSM
 {
     [Key]

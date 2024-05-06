@@ -20,14 +20,14 @@ public class PsmContext : DbContext
         => options.UseSqlite(DbOperations.ConnectionString);
 
     //// Avoids duplications in the database todo: not working
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<PSM>(psm =>
-        {
-            psm.HasIndex(p => new { p.FileName, p.FullSequence })
-                .IsUnique();
-        });
-    }
+    //protected override void OnModelCreating(ModelBuilder modelBuilder)
+    //{
+    //    modelBuilder.Entity<PSM>(psm =>
+    //    {
+    //        psm.HasIndex(p => new { p.FileName, p.FullSequence })
+    //            .IsUnique();
+    //    });
+    //}
 
     public DbSet<PSM> PSMs { get; set; }
 }

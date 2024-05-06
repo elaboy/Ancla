@@ -1,10 +1,11 @@
 ﻿using AnchorLib;
+using ThermoFisher.CommonCore.Data;
 
 namespace Database;
 
 public static class DbOperations
 {
-    public static string ConnectionString = @"Data Source = D:\anchor.db";
+    public static string ConnectionString = @"Data Source = D:\anchor_AllPsms.db";
     public static void AddPsms(PsmContext context, List<PSM> psms)
     {
         foreach (var psm in psms)
@@ -27,21 +28,35 @@ public static class DbOperations
 
         List<PSM> psmsToUpload = new List<PSM>();
 
-        Parallel.ForEach(psms, psm =>
+        // empty database, dont check for redundancy, else upload every psm with qvalue <= 0.01
+        if (psmsInDB.IsNullOrEmpty())
         {
-            // Fetch existing data in bulk
-            var existingData = psmsInDB
-                .FirstOrDefault(p => p.FileName == psm.FileName &&
-                                     p.FullSequence == psm.FullSequence);
-            //.ToList();
+            psmsToUpload.AddRange(psms.Where(p => p.QValue <= 0.01));
+        }
+        else
+        {
 
-            if (existingData == null)
+            Parallel.ForEach(psms, psm =>
             {
-                // Add new PSM if not found in the database
-                psmsToUpload.Add(psm);
-            }
-        });
+                if (psm.QValue <= 0.01)
+                {
+                    // Fetch existing data in bulk
+                    var existingData = psmsInDB
+                        .FirstOrDefault(p => p.FileName == psm.FileName &&
+                                             p.FullSequence == psm.FullSequence);
+                    //.ToList();
 
+                    if (existingData == null)
+                    {
+                        // Add new PSM if not found in the database
+                        psmsToUpload.Add(psm);
+                    }
+                }
+
+            });
+        }
+
+        // transaction to add all new psms to the database
         using (var transaction = context.Database.BeginTransaction())
         {
 
