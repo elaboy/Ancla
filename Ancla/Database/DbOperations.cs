@@ -1,11 +1,12 @@
 ﻿using AnchorLib;
+using MathNet.Numerics.Statistics;
 using ThermoFisher.CommonCore.Data;
 
 namespace Database;
 
 public static class DbOperations
 {
-    public static string ConnectionString = @"Data Source = D:\anchor_AllPsms.db";
+    public static string ConnectionString = @"Data Source = D:\anchor_PerFileMedian.db";
     public static void AddPsms(PsmContext context, List<PSM> psms)
     {
         foreach (var psm in psms)
@@ -19,6 +20,87 @@ public static class DbOperations
     {
         context.Add(psm);
         context.SaveChanges();
+    }
+
+    public static void AnalizeAndAddPsmEntry(PsmContext context, PSM psm)
+    {
+        // search for the psm FullSequence in the database
+        var existingData = context.PSMs
+            .FirstOrDefault(p => p.FileName == psm.FileName &&
+                                 p.FullSequence == psm.FullSequence);
+
+        // if nothing, upload it to the database
+        if (existingData == null)
+        {
+            context.Add(psm);
+            context.SaveChanges();
+        }
+    }
+
+    public static void AnalizeAndAddPsmsFile(PsmContext context, List<PSM> psms)
+    {
+        foreach (var psm in psms)
+        {
+            AnalizeAndAddPsmEntry(context, psm);
+        }
+    }
+
+    public static void AnalizeAndAddPsmsBulk(PsmContext context, List<PSM> psms)
+    {
+        //group all psms by full sequence 
+        var groupedPsms = psms.GroupBy(p => p.FullSequence).ToList();
+
+        var psmsToUpload = new List<PSM>();
+
+        //take the median of the retention times
+        foreach (var group in groupedPsms)
+        {
+            var medianRetentionTime = group.Select(p => p.ScanRetentionTime).Median();
+
+            //search for the psm FullSequence in the database
+            var existingData = context.PSMs
+                .FirstOrDefault(p => p.FileName == group.First().FileName &&
+                                     p.FullSequence == group.Key);
+
+            //if nothing, upload it to the database
+            if (existingData == null)
+            {
+                psmsToUpload.Add(new PSM
+                {
+                    FileName = group.First().FileName,
+                    BaseSequence = group.First().BaseSequence,
+                    FullSequence = group.Key,
+                    ScanRetentionTime = medianRetentionTime,
+                    QValue = group.First().QValue,
+                    PEP = group.First().PEP,
+                    PEPQvalue = group.First().PEPQvalue,
+                    PrecursorCharge = group.First().PrecursorCharge,
+                    PrecursorMZ = group.First().PrecursorMZ,
+                    PrecursorMass = group.First().PrecursorMass,
+                    ProteinAccession = group.First().ProteinAccession,
+                    ProteinName = group.First().ProteinName,
+                    GeneName = group.First().GeneName,
+                    OrganismName = group.First().OrganismName,
+                    StartAndEndResidueInProtein = group.First().StartAndEndResidueInProtein,
+                    MassErrorDaltons = group.First().MassErrorDaltons,
+                    Score = group.First().Score,
+                    TotalIonCurrent = group.First().TotalIonCurrent,
+                    Notch = group.First().Notch,
+                    AmbiguityLevel = group.First().AmbiguityLevel,
+                    PeptideMonoisotopicMass = group.First().PeptideMonoisotopicMass
+                });
+            }
+        }
+
+        // transaction to add all new psms to the database
+        using (var transaction = context.Database.BeginTransaction())
+        {
+
+            // Add all new PSMs to the database
+            context.AddRange(psmsToUpload);
+            context.SaveChanges();
+            transaction.Commit();
+        }
     }
 
     public static void AddPsmsNonRedundant(PsmContext context, List<PSM> psms)
