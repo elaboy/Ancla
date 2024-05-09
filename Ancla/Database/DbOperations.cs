@@ -6,7 +6,7 @@ namespace Database;
 
 public static class DbOperations
 {
-    public static string ConnectionString = @"Data Source = D:\anchor_PerFileMedian.db";
+    public static string ConnectionString = @"Data Source = D:\anchor_PerFileMedian_oneJurkatOut.db";
     public static void AddPsms(PsmContext context, List<PSM> psms)
     {
         foreach (var psm in psms)
@@ -47,6 +47,7 @@ public static class DbOperations
 
     public static void AnalizeAndAddPsmsBulk(PsmContext context, List<PSM> psms)
     {
+
         //group all psms by full sequence 
         var groupedPsms = psms.GroupBy(p => p.FullSequence).ToList();
 

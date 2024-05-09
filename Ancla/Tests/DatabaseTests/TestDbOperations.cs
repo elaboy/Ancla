@@ -96,9 +96,13 @@ public class TestDbOperations
             @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\MCF7_AllPSMs.psmtsv",
             @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\RKO_AllPSMs.psmtsv",
             @"\\Edwin-ml\F\RetentionTimeProject\MannPeptideResults\U2OS_AllPSMs.psmtsv",
+            @"\\Edwin-ml\F\RetentionTimeProject\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv"
         };
 
         var psms = PsmService.GetPsms(psmFilePath);
+
+        //remove psms whose file name is "12-18-17_frac3-calib-averaged"
+        psms = psms.Where(p => p.FileName != "12-18-17_frac3-calib-averaged").ToList();
 
         var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
         optionsBuilder.UseSqlite(DbOperations.ConnectionString);

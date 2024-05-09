@@ -14,7 +14,10 @@ public class PsmService
 
             foreach (var psm in psmtsv)
             {
-                psms.Add(new PSM(psm));
+                if (psm.DecoyContamTarget == "T" && psm.QValue <= 0.01)
+                {
+                    psms.Add(new PSM(psm));
+                }
             }
         }
 
