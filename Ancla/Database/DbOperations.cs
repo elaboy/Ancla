@@ -1,4 +1,5 @@
 ﻿using AnchorLib;
+using MathNet.Numerics;
 using MathNet.Numerics.Statistics;
 using ThermoFisher.CommonCore.Data;
 
@@ -6,7 +7,7 @@ namespace Database;
 
 public static class DbOperations
 {
-    public static string ConnectionString = @"Data Source = D:\anchor_PerFileMedian_oneJurkatOut.db";
+    public static string ConnectionString = @"Data Source = D:\anchor_testing_linear_model.db";
     public static void AddPsms(PsmContext context, List<PSM> psms)
     {
         foreach (var psm in psms)
@@ -183,6 +184,93 @@ public static class DbOperations
             return groupedAnchors;
         }
     }
+
+    public static List<PSM> GetFullSequencesOverlaps(PsmContext context, List<PSM> psms)
+    {
+        
+        var databasePsms = context.PSMs.ToList();
+
+        List<PSM> overlappingPsms = new List<PSM>();
+
+        Parallel.ForEach(psms, psm =>
+        {
+            var existingData = databasePsms
+                .FirstOrDefault(p => p.FullSequence == psm.FullSequence);
+
+            if (existingData != null)
+            {
+                overlappingPsms.Add(existingData);
+            }
+            else
+            {
+                //tag that psm to remove it from the list later
+                psm.ScanRetentionTime = -999;
+            }
+        });
+
+        return overlappingPsms;
+    }
+
+    #region Linear Regression Code
+
+    public static (double, double) FitLinearModelToData(List<PSM> databasePsms, List<PSM> experimentalData)
+    {
+            var x = experimentalData
+                .OrderByDescending(p => p.ScanRetentionTime)
+                .ToArray();
+
+            var y = databasePsms
+                .OrderByDescending(p => p.ScanRetentionTime)
+                .ToArray();
+
+            (double, double) model = Fit.Line(x.Select(p => p.ScanRetentionTime).ToArray(),
+                y.Select(p => p.ScanRetentionTime).ToArray());
+
+            var intercept = model.Item1;
+            var slope = model.Item2;
+
+            return (intercept, slope);
+    }
+
+    public static List<PSM> TransformExperimentalRetentionTimes(List<PSM> experimentalData, (double, double) model)
+    {
+            var intercept = model.Item1;
+            var slope = model.Item2;
+
+            List<PSM> transformedData = new List<PSM>();
+
+            foreach (var psm in experimentalData)
+            {
+                transformedData.Add(new PSM()
+                {
+                    FileName = psm.FileName,
+                    BaseSequence = psm.BaseSequence,
+                    FullSequence = psm.FullSequence,
+                    ScanRetentionTime = (psm.ScanRetentionTime * slope) + intercept,
+                    QValue = psm.QValue,
+                    PEP = psm.PEP,
+                    PEPQvalue = psm.PEPQvalue,
+                    PrecursorCharge = psm.PrecursorCharge,
+                    PrecursorMZ = psm.PrecursorMZ,
+                    PrecursorMass = psm.PrecursorMass,
+                    ProteinAccession = psm.ProteinAccession,
+                    ProteinName = psm.ProteinName,
+                    GeneName = psm.GeneName,
+                    OrganismName = psm.OrganismName,
+                    StartAndEndResidueInProtein = psm.StartAndEndResidueInProtein,
+                    MassErrorDaltons = psm.MassErrorDaltons,
+                    Score = psm.Score,
+                    TotalIonCurrent = psm.TotalIonCurrent,
+                    Notch = psm.Notch,
+                    AmbiguityLevel = psm.AmbiguityLevel,
+                    PeptideMonoisotopicMass = psm.PeptideMonoisotopicMass
+                });
+            }
+
+            return experimentalData;
+    }
+
+    #endregion
 }
 
 public class ArchorOperations
