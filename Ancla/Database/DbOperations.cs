@@ -1,7 +1,15 @@
 ﻿using AnchorLib;
 using MathNet.Numerics;
 using MathNet.Numerics.Statistics;
+using Microsoft.FSharp.Core;
+using Plotly.NET;
+using Plotly.NET.CSharp;
+using Plotly.NET.ImageExport;
+using Plotly.NET.LayoutObjects;
+using Plotly.NET.TraceObjects;
 using ThermoFisher.CommonCore.Data;
+using Chart = Plotly.NET.CSharp.Chart;
+using GenericChartExtensions = Plotly.NET.GenericChartExtensions;
 
 namespace Database;
 
@@ -49,6 +57,7 @@ public static class DbOperations
     public static void AnalizeAndAddPsmsBulk(PsmContext context, List<PSM> psms)
     {
 
+
         //group all psms by full sequence 
         var groupedPsms = psms.GroupBy(p => p.FullSequence).ToList();
 
@@ -62,7 +71,8 @@ public static class DbOperations
             //search for the psm FullSequence in the database
             var existingData = context.PSMs
                 .FirstOrDefault(p => p.FileName == group.First().FileName &&
-                                     p.FullSequence == group.Key);
+                                     p.FullSequence == group.Key
+                                     && p.QValue <= 0.01);
 
             //if nothing, upload it to the database
             if (existingData == null)
@@ -185,12 +195,12 @@ public static class DbOperations
         }
     }
 
-    public static List<PSM> GetFullSequencesOverlaps(PsmContext context, List<PSM> psms)
+    public static List<(PSM, PSM)> GetFullSequencesOverlaps(PsmContext context, List<PSM> psms)
     {
-        
+
         var databasePsms = context.PSMs.ToList();
 
-        List<PSM> overlappingPsms = new List<PSM>();
+        List<(PSM, PSM)> overlappingPsms = new List<(PSM, PSM)>();
 
         Parallel.ForEach(psms, psm =>
         {
@@ -199,12 +209,7 @@ public static class DbOperations
 
             if (existingData != null)
             {
-                overlappingPsms.Add(existingData);
-            }
-            else
-            {
-                //tag that psm to remove it from the list later
-                psm.ScanRetentionTime = -999;
+                overlappingPsms.Add((existingData, psm));
             }
         });
 
@@ -213,63 +218,97 @@ public static class DbOperations
 
     #region Linear Regression Code
 
-    public static (double, double) FitLinearModelToData(List<PSM> databasePsms, List<PSM> experimentalData)
+    public static (double, double) FitLinearModelToData(List<(PSM, PSM)> overlaps)
     {
-            var x = experimentalData
-                .OrderByDescending(p => p.ScanRetentionTime)
-                .ToArray();
+        //database psms
+        var y = overlaps.Select(psmTuple => psmTuple.Item1)
+            .OrderByDescending(p => p.ScanRetentionTime)
+            .ToArray();
 
-            var y = databasePsms
-                .OrderByDescending(p => p.ScanRetentionTime)
-                .ToArray();
+        //experimental psms
+        var x = overlaps.Select(psmTuple => psmTuple.Item2)
+            .OrderByDescending(p => p.ScanRetentionTime)
+            .ToArray();
 
-            (double, double) model = Fit.Line(x.Select(p => p.ScanRetentionTime).ToArray(),
-                y.Select(p => p.ScanRetentionTime).ToArray());
+        (double, double) model = Fit.Line(x.Select(p => p.ScanRetentionTime).ToArray(),
+            y.Select(p => p.ScanRetentionTime).ToArray());
 
-            var intercept = model.Item1;
-            var slope = model.Item2;
+        var intercept = model.Item1;
+        var slope = model.Item2;
 
-            return (intercept, slope);
+        return (intercept, slope);
     }
 
-    public static List<PSM> TransformExperimentalRetentionTimes(List<PSM> experimentalData, (double, double) model)
+    public static List<(PSM, PSM, PSM)> TransformExperimentalRetentionTimes(List<(PSM, PSM)> overlaps, (double, double) model)
     {
-            var intercept = model.Item1;
-            var slope = model.Item2;
+        var intercept = model.Item1;
+        var slope = model.Item2;
 
-            List<PSM> transformedData = new List<PSM>();
+        List<(PSM, PSM, PSM)> transformedData = new List<(PSM, PSM, PSM)>();
 
-            foreach (var psm in experimentalData)
+        foreach (var psm in overlaps)
+        {
+            transformedData.Add((psm.Item1, psm.Item2, new PSM()
             {
-                transformedData.Add(new PSM()
-                {
-                    FileName = psm.FileName,
-                    BaseSequence = psm.BaseSequence,
-                    FullSequence = psm.FullSequence,
-                    ScanRetentionTime = (psm.ScanRetentionTime * slope) + intercept,
-                    QValue = psm.QValue,
-                    PEP = psm.PEP,
-                    PEPQvalue = psm.PEPQvalue,
-                    PrecursorCharge = psm.PrecursorCharge,
-                    PrecursorMZ = psm.PrecursorMZ,
-                    PrecursorMass = psm.PrecursorMass,
-                    ProteinAccession = psm.ProteinAccession,
-                    ProteinName = psm.ProteinName,
-                    GeneName = psm.GeneName,
-                    OrganismName = psm.OrganismName,
-                    StartAndEndResidueInProtein = psm.StartAndEndResidueInProtein,
-                    MassErrorDaltons = psm.MassErrorDaltons,
-                    Score = psm.Score,
-                    TotalIonCurrent = psm.TotalIonCurrent,
-                    Notch = psm.Notch,
-                    AmbiguityLevel = psm.AmbiguityLevel,
-                    PeptideMonoisotopicMass = psm.PeptideMonoisotopicMass
-                });
-            }
+                FileName = psm.Item2.FileName,
+                BaseSequence = psm.Item2.BaseSequence,
+                FullSequence = psm.Item2.FullSequence,
+                ScanRetentionTime = (psm.Item2.ScanRetentionTime * slope) + intercept,
+                QValue = psm.Item2.QValue,
+                PEP = psm.Item2.PEP,
+                PEPQvalue = psm.Item2.PEPQvalue,
+                PrecursorCharge = psm.Item2.PrecursorCharge,
+                PrecursorMZ = psm.Item2.PrecursorMZ,
+                PrecursorMass = psm.Item2.PrecursorMass,
+                ProteinAccession = psm.Item2.ProteinAccession,
+                ProteinName = psm.Item2.ProteinName,
+                GeneName = psm.Item2.GeneName,
+                OrganismName = psm.Item2.OrganismName,
+                StartAndEndResidueInProtein = psm.Item2.StartAndEndResidueInProtein,
+                MassErrorDaltons = psm.Item2.MassErrorDaltons,
+                Score = psm.Item2.Score,
+                TotalIonCurrent = psm.Item2.TotalIonCurrent,
+                Notch = psm.Item2.Notch,
+                AmbiguityLevel = psm.Item2.AmbiguityLevel,
+                PeptideMonoisotopicMass = psm.Item2.PeptideMonoisotopicMass
+            }));
+        }
 
-            return experimentalData;
+        return transformedData;
     }
 
+    public static void TransformationScatterPlot(List<(PSM, PSM, PSM)> data)
+    {
+        //calculate R^2 value
+        var pre_rSquared = GoodnessOfFit.RSquared(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item2.ScanRetentionTime).ToArray());
+
+        var post_rSquared = GoodnessOfFit.RSquared(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item3.ScanRetentionTime).ToArray());
+
+        var preTransformation = Chart.Scatter<double, double, string>(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item2.ScanRetentionTime).ToArray(),
+            StyleParam.Mode.Markers, pre_rSquared.ToString());
+
+        var postTransformation = Chart.Scatter<double, double, string>(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item3.ScanRetentionTime).ToArray(),
+            StyleParam.Mode.Markers, post_rSquared.ToString());
+
+        // make the two scatters into the same image using a grid
+        var grid = Chart.Grid(new[]{preTransformation, postTransformation}, 2, 1);
+
+        //remove timeout from puppeteer
+        PuppeteerSharpRendererOptions.launchOptions.Timeout = 0;
+
+        // save the plot
+        //grid.SavePNG(@"D:\transformation_scatter_plot.png", EngineType: null, 600, 400);
+        //show plot grid
+        GenericChartExtensions.Show(grid);
+    }
     #endregion
 }
 
