@@ -4,6 +4,7 @@ using Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Plotly.NET;
+using SharpLearning.Optimization;
 using Chart = Plotly.NET.CSharp.Chart;
 
 namespace Tests.DatabaseTests;
@@ -133,9 +134,9 @@ public class TestDbOperations
     {
         string path = "testing_init.db";
         bool anyError = false;
-        
+
         DbOperations.DbConnectionInit(path, out anyError);
-        
+
         Assert.That(!anyError);
     }
 
@@ -177,7 +178,7 @@ public class TestDbOperations
     public void TestLinearRegressionN100()
     {
         List<string> experimental =
-            new List<string>(){@"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv"};
+            new List<string>() { @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv" };
 
         var psms = PsmService.GetPsms(experimental)
             .Where(p => p.FileName != "12-18-17_frac3-calib-averaged")
@@ -207,7 +208,7 @@ public class TestDbOperations
 
     #endregion
 
-    
+
     #region One File at a time to show how CLT reflets on the collection of evidence
 
     /*
@@ -219,66 +220,126 @@ public class TestDbOperations
     {
         var psmFilePath = new List<string>()
         {
-            @"/Volumes/data/MannPeptideResults/A549_AllPSMs.psmtsv",
-            @"/Volumes/data/MannPeptideResults/GAMG_AllPSMs.psmtsv",
-            @"/Volumes/data/MannPeptideResults/HEK293_AllPSMs.psmtsv",
-            @"/Volumes/data/MannPeptideResults/Hela_AllPSMs.psmtsv",
-            @"/Volumes/data/MannPeptideResults/HepG2AllPSMs.psmtsv",
-            @"/Volumes/data/MannPeptideResults/Jurkat_AllPSMs.psmtsv",
-            @"/Volumes/data/MannPeptideResults/LanCap_AllPSMs.psmtsv",
-            @"/Volumes/data/MannPeptideResults/MCF7_AllPSMs.psmtsv",
-            @"/Volumes/data/MannPeptideResults/RKO_AllPSMs.psmtsv",
-            @"/Volumes/data/MannPeptideResults/U2OS_AllPSMs.psmtsv",
-            @"/Volumes/data/OtherPeptideResultsForTraining/JurkatMultiProtease_AllPSMs.psmtsv"
-        };                 
-        
+            @"D:\MannPeptideResults/A549_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/GAMG_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HEK293_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Hela_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HepG2AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Jurkat_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/LanCap_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/MCF7_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/RKO_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
+            @"D:\OtherPeptideResultsForTraining/JurkatMultiProtease_AllPSMs.psmtsv"
+        };
+
         string dbPath = "IncrementalFilesAndDecreaseInDitribution";
         bool anyError = false;
-        
+
         DbOperations.DbConnectionInit(dbPath, out anyError);
 
         // List of generic charts
         List<GenericChart.GenericChart> charts = new();
-        
-        for (int i = 0; i < 11; i++)
+
+        for (int i = 0; i < 12; i++)
         {
-            var psms = PsmService.GetPsms(new(){psmFilePath[i]});
+            var psms = PsmService.GetPsms(new() { psmFilePath[i] });
 
             //remove psms whose file name is "12-18-17_frac3-calib-averaged"
             psms = psms.Where(p => p.FileName != "12-18-17_frac3-calib-averaged").ToList();
 
             var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
             optionsBuilder.UseSqlite(@"Data Source = " + dbPath);
-            
+
             using (var context = new PsmContext(optionsBuilder.Options))
             {
                 DbOperations.AnalizeAndAddPsmsBulk(context, psms);
-                
+
                 // Get the linear model
                 var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, psms);
-                
+
                 // Fit the linear model
                 var linearModel = DbOperations.FitLinearModelToData(overlapsFromDatabase);
-                
+
                 // Transform the experimental retention times
                 var transformedExperimental = DbOperations.TransformExperimentalRetentionTimes(
                     overlapsFromDatabase,
                     linearModel);
-                
+
                 // Plot the scatter plot
                 GenericChart.GenericChart scatterPlot =
                     DbOperations.GetTransformationScatterPlot(transformedExperimental);
-                
+
                 // Add the scatter plot to the list of charts
                 charts.Add(scatterPlot);
             }
         }
-        
+
         // create a grid for all the charts
-        var grid = Chart.Grid(charts.ToArray(), 3, 4);
-        
+        var grid = Chart.Grid(charts.ToArray(), 12, 1);
+
         // show the grid
         GenericChartExtensions.Show(grid);
     }
     #endregion
+
+    [Test]
+    public void TestGetDistributions()
+    {
+        var psmFilePath = new List<string>()
+        {
+            @"D:\MannPeptideResults/A549_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/GAMG_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HEK293_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Hela_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HepG2AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Jurkat_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/LanCap_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/MCF7_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/RKO_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
+        };
+
+        string dbPath = "DistributionTest";
+        bool anyError = false;
+
+        DbOperations.DbConnectionInit(dbPath, out anyError);
+
+        string jurkatPath = @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv";
+
+        var psms = PsmService.GetPsms(new() { jurkatPath });
+
+        //remove psms whose file name is "12-18-17_frac3-calib-averaged"
+        psms = psms.Where(p => p.FileName == "12-18-17_frac3-calib-averaged").ToList();
+
+        var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
+        optionsBuilder.UseSqlite(@"Data Source = " + dbPath);
+
+        List<GenericChart.GenericChart> charts = new();
+
+        using (var context = new PsmContext(optionsBuilder.Options))
+        {
+            DbOperations.AnalizeAndAddPsmsBulk(context, psms);
+        }
+
+        using (var context = new PsmContext(optionsBuilder.Options))
+        {
+            // Get the linear model
+            var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, psms);
+
+            // Fit the linear model
+            var linearModel = DbOperations.FitLinearModelToData(overlapsFromDatabase);
+
+            // Transform the experimental retention times
+            var transformedExperimental = DbOperations.TransformExperimentalRetentionTimes(
+                overlapsFromDatabase,
+                linearModel);
+
+            // Plot the distribution 
+            charts.Add(DbOperations.GetDistributions(transformedExperimental));
+        }
+
+        //show the grid
+        charts.First().Show();
+    }
 }

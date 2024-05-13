@@ -3,7 +3,6 @@ using MathNet.Numerics;
 using MathNet.Numerics.Statistics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.FSharp.Core;
 using Plotly.NET;
 using Plotly.NET.CSharp;
 using Plotly.NET.ImageExport;
@@ -17,7 +16,7 @@ namespace Database;
 
 public static class DbOperations
 {
-    public static string ConnectionString = 
+    public static string ConnectionString =
         @"Data Source = D:\anchor_testing_linear_model.db";
 
     public static void DbConnectionInit(string dbPathAndName, out bool anyErrors)
@@ -25,15 +24,15 @@ public static class DbOperations
         // create a service collection and configure it for DbContext
         var services = new ServiceCollection()
             .AddDbContextFactory<PsmContext>(options =>
-                options.UseSqlite(@"Data Source = "+dbPathAndName));
+                options.UseSqlite(@"Data Source = " + dbPathAndName));
 
         // Builds the service provider
         var serviceProvider = services.BuildServiceProvider();
-        
+
         // Get the DbContext factory from the service provider
         var dbContextFactory =
             serviceProvider.GetRequiredService<IDbContextFactory<PsmContext>>();
-        
+
         // Creates new instance of the DbContext
         using (var dbContext = dbContextFactory.CreateDbContext())
         {
@@ -104,8 +103,8 @@ public static class DbOperations
             //search for the psm FullSequence in the database
             var existingData = context.PSMs
                 .FirstOrDefault(p => p.FileName == group.First().FileName &&
-                                     p.FullSequence == group.Key
-                                     && p.QValue <= 0.01);
+                                     p.FullSequence == group.Key && 
+                                     p.QValue <= 0.01);
 
             //if nothing, upload it to the database
             if (existingData == null)
@@ -332,7 +331,7 @@ public static class DbOperations
             StyleParam.Mode.Markers, post_rSquared.ToString());
 
         // make the two scatters into the same image using a grid
-        var grid = Chart.Grid(new[]{preTransformation, postTransformation}, 2, 1);
+        var grid = Chart.Grid(new[] { preTransformation, postTransformation }, 2, 1);
 
         //remove timeout from puppeteer
         PuppeteerSharpRendererOptions.launchOptions.Timeout = 0;
@@ -342,7 +341,7 @@ public static class DbOperations
         //show plot grid
         GenericChartExtensions.Show(grid);
     }
-    
+
     public static GenericChart.GenericChart GetTransformationScatterPlot(List<(PSM, PSM, PSM)> data)
     {
         //calculate R^2 value
@@ -365,16 +364,38 @@ public static class DbOperations
             StyleParam.Mode.Markers, post_rSquared.ToString());
 
         // make the two scatters into the same image using a grid
-        var grid = Chart.Grid(new[]{preTransformation, postTransformation}, 2, 1);
+        var grid = Chart.Grid(new[] { preTransformation, postTransformation }, 2, 1);
 
         //remove timeout from puppeteer
         PuppeteerSharpRendererOptions.launchOptions.Timeout = 0;
-        
+
         return grid;
         // save the plot
         //grid.SavePNG(@"D:\transformation_scatter_plot.png", EngineType: null, 600, 400);
         //show plot grid
     }
+
+    public static GenericChart.GenericChart GetDistributions(List<(PSM, PSM, PSM)> data)
+    {
+        //get residuals from database vs experimental 
+        var preResiduals = data.Select(d => d.Item1.ScanRetentionTime - d.Item2.ScanRetentionTime).ToArray();
+
+        //get residuals from database vs transformedExperimental
+
+        var postResiduals = data.Select(d => d.Item1.ScanRetentionTime - d.Item3.ScanRetentionTime).ToArray();
+
+        //histogram with residuals
+        var preResidualsHistogram = Chart.Histogram<double, double, string>(preResiduals, HistNorm:new Optional<StyleParam.HistNorm>(StyleParam.HistNorm.Density, false));
+
+        //histogram with residuals
+        var postResidualsHistogram = Chart.Histogram<double, double, string>(postResiduals, HistNorm: new Optional<StyleParam.HistNorm>(StyleParam.HistNorm.Density, false));
+
+        // make the two histograms into the same image using a grid
+        var grid = Chart.Grid(new[] { preResidualsHistogram, postResidualsHistogram }, 1, 2);
+
+        return grid;
+    }
+
     #endregion
 }
 
