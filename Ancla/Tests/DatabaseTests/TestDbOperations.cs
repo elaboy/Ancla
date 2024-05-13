@@ -1,6 +1,10 @@
-﻿using AnchorLib;
+﻿using System.Diagnostics;
+using AnchorLib;
 using Database;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Plotly.NET;
+using Chart = Plotly.NET.CSharp.Chart;
 
 namespace Tests.DatabaseTests;
 public class TestDbOperations
@@ -124,6 +128,17 @@ public class TestDbOperations
         }
     }
 
+    [Test]
+    public void TestDbConnectionInit()
+    {
+        string path = "testing_init.db";
+        bool anyError = false;
+        
+        DbOperations.DbConnectionInit(path, out anyError);
+        
+        Assert.That(!anyError);
+    }
+
     #region Linear Regression Tests
 
     [Test]
@@ -190,52 +205,80 @@ public class TestDbOperations
         DbOperations.TransformationScatterPlot(transformedExperimental);
     }
 
-    //[Test]
-    //public void TestLinearRegressionFull()
-    //{
-    //    List<string> experimental =
-    //        new List<string>() { @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv" };
-
-    //    var psms = PsmService.GetPsms(experimental)
-    //        .Where(p => p.FileName != "12-18-17_frac3-calib-averaged" && p.QValue <= 0.01)
-    //        //.Take(100)
-    //        .ToList();
-
-    //    var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
-    //    optionsBuilder.UseSqlite(DbOperations.ConnectionString);
-
-    //    List<PSM> overlapsFromDatabase = new List<PSM>();
-
-    //    using (var context = new PsmContext(optionsBuilder.Options))
-    //    {
-    //        var overlaps = DbOperations.GetFullSequencesOverlaps(context, psms);
-    //        overlapsFromDatabase.AddRange(overlaps);
-    //    }
-
-    //    //take out of psms the ones that are not in the database
-    //    psms = psms.Where(p => overlapsFromDatabase.Any(o => o.ScanRetentionTime  != -999)).ToList();
-
-    //    (double, double) linearModel = DbOperations.FitLinearModelToData(overlapsFromDatabase, psms);
-
-    //    var transformedExperimental = DbOperations.TransformExperimentalRetentionTimes(psms, linearModel);
-
-
-    //    //make table of the results where the first column is the full sequence of the full sequence from both the experimental and the database. 
-    //    // The second column is the retention time from the experimental and the third column is the retention time from the database.
-    //    // the third is the transformed retention time from the experimental
-
-    //    var table = new List<(string, double, double, double)>();
-
-    //    foreach (var psm in psms)
-    //    {
-    //        var databasePsm = overlapsFromDatabase.FirstOrDefault(p => p.FullSequence == psm.FullSequence);
-    //        var transformedRetentionTime = transformedExperimental.FirstOrDefault(p => p.FullSequence == psm.FullSequence);
-    //        table.Add((psm.FullSequence, psm.ScanRetentionTime, databasePsm.ScanRetentionTime, transformedRetentionTime.ScanRetentionTime));
-    //    }
-
-    //    Assert.That(table.Count > 0);
-    //}
-
     #endregion
 
+    
+    #region One File at a time to show how CLT reflets on the collection of evidence
+
+    /*
+     * This method's purpose is to test how the variance for the same peptide keeps reducing on each
+     * database insertion. Visualize how both scatter plots keeps increasing in linearity on each iteration.
+     */
+    [Test]
+    public void TestIncrementalFileAndTestDistributions()
+    {
+        var psmFilePath = new List<string>()
+        {
+            @"/Volumes/data/MannPeptideResults/A549_AllPSMs.psmtsv",
+            @"/Volumes/data/MannPeptideResults/GAMG_AllPSMs.psmtsv",
+            @"/Volumes/data/MannPeptideResults/HEK293_AllPSMs.psmtsv",
+            @"/Volumes/data/MannPeptideResults/Hela_AllPSMs.psmtsv",
+            @"/Volumes/data/MannPeptideResults/HepG2AllPSMs.psmtsv",
+            @"/Volumes/data/MannPeptideResults/Jurkat_AllPSMs.psmtsv",
+            @"/Volumes/data/MannPeptideResults/LanCap_AllPSMs.psmtsv",
+            @"/Volumes/data/MannPeptideResults/MCF7_AllPSMs.psmtsv",
+            @"/Volumes/data/MannPeptideResults/RKO_AllPSMs.psmtsv",
+            @"/Volumes/data/MannPeptideResults/U2OS_AllPSMs.psmtsv",
+            @"/Volumes/data/OtherPeptideResultsForTraining/JurkatMultiProtease_AllPSMs.psmtsv"
+        };                 
+        
+        string dbPath = "IncrementalFilesAndDecreaseInDitribution";
+        bool anyError = false;
+        
+        DbOperations.DbConnectionInit(dbPath, out anyError);
+
+        // List of generic charts
+        List<GenericChart.GenericChart> charts = new();
+        
+        for (int i = 0; i < 11; i++)
+        {
+            var psms = PsmService.GetPsms(new(){psmFilePath[i]});
+
+            //remove psms whose file name is "12-18-17_frac3-calib-averaged"
+            psms = psms.Where(p => p.FileName != "12-18-17_frac3-calib-averaged").ToList();
+
+            var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
+            optionsBuilder.UseSqlite(@"Data Source = " + dbPath);
+            
+            using (var context = new PsmContext(optionsBuilder.Options))
+            {
+                DbOperations.AnalizeAndAddPsmsBulk(context, psms);
+                
+                // Get the linear model
+                var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, psms);
+                
+                // Fit the linear model
+                var linearModel = DbOperations.FitLinearModelToData(overlapsFromDatabase);
+                
+                // Transform the experimental retention times
+                var transformedExperimental = DbOperations.TransformExperimentalRetentionTimes(
+                    overlapsFromDatabase,
+                    linearModel);
+                
+                // Plot the scatter plot
+                GenericChart.GenericChart scatterPlot =
+                    DbOperations.GetTransformationScatterPlot(transformedExperimental);
+                
+                // Add the scatter plot to the list of charts
+                charts.Add(scatterPlot);
+            }
+        }
+        
+        // create a grid for all the charts
+        var grid = Chart.Grid(charts.ToArray(), 3, 4);
+        
+        // show the grid
+        GenericChartExtensions.Show(grid);
+    }
+    #endregion
 }

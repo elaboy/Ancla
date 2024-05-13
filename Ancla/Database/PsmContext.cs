@@ -16,8 +16,8 @@ public class PsmContext : DbContext
 
     }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder options)
-        => options.UseSqlite(DbOperations.ConnectionString);
+    // protected override void OnConfiguring(DbContextOptionsBuilder options)
+    //     => options.UseSqlite();
 
     //// Avoids duplications in the database todo: not working
     //protected override void OnModelCreating(ModelBuilder modelBuilder)

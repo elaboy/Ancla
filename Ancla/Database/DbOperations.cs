@@ -1,6 +1,8 @@
 ﻿using AnchorLib;
 using MathNet.Numerics;
 using MathNet.Numerics.Statistics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FSharp.Core;
 using Plotly.NET;
 using Plotly.NET.CSharp;
@@ -15,7 +17,40 @@ namespace Database;
 
 public static class DbOperations
 {
-    public static string ConnectionString = @"Data Source = D:\anchor_testing_linear_model.db";
+    public static string ConnectionString = 
+        @"Data Source = D:\anchor_testing_linear_model.db";
+
+    public static void DbConnectionInit(string dbPathAndName, out bool anyErrors)
+    {
+        // create a service collection and configure it for DbContext
+        var services = new ServiceCollection()
+            .AddDbContextFactory<PsmContext>(options =>
+                options.UseSqlite(@"Data Source = "+dbPathAndName));
+
+        // Builds the service provider
+        var serviceProvider = services.BuildServiceProvider();
+        
+        // Get the DbContext factory from the service provider
+        var dbContextFactory =
+            serviceProvider.GetRequiredService<IDbContextFactory<PsmContext>>();
+        
+        // Creates new instance of the DbContext
+        using (var dbContext = dbContextFactory.CreateDbContext())
+        {
+            try
+            {
+                // Apply any pending migrations
+                dbContext.Database.Migrate();
+                anyErrors = false;
+                Console.WriteLine("Datbase migration successful.");
+            }
+            catch (Exception exception)
+            {
+                anyErrors = true;
+                Console.WriteLine(exception.Message);
+            }
+        }
+    }
     public static void AddPsms(PsmContext context, List<PSM> psms)
     {
         foreach (var psm in psms)
@@ -56,8 +91,6 @@ public static class DbOperations
 
     public static void AnalizeAndAddPsmsBulk(PsmContext context, List<PSM> psms)
     {
-
-
         //group all psms by full sequence 
         var groupedPsms = psms.GroupBy(p => p.FullSequence).ToList();
 
@@ -107,7 +140,6 @@ public static class DbOperations
         // transaction to add all new psms to the database
         using (var transaction = context.Database.BeginTransaction())
         {
-
             // Add all new PSMs to the database
             context.AddRange(psmsToUpload);
             context.SaveChanges();
@@ -118,12 +150,12 @@ public static class DbOperations
     public static void AddPsmsNonRedundant(PsmContext context, List<PSM> psms)
     {
         //one bulk transaction instead of multiple transactions (per psm) 
-        var psmsInDB = context.PSMs.ToList();
+        var psmsInDb = context.PSMs.ToList();
 
         List<PSM> psmsToUpload = new List<PSM>();
 
         // empty database, dont check for redundancy, else upload every psm with qvalue <= 0.01
-        if (psmsInDB.IsNullOrEmpty())
+        if (psmsInDb.IsNullOrEmpty())
         {
             psmsToUpload.AddRange(psms.Where(p => p.QValue <= 0.01));
         }
@@ -135,7 +167,7 @@ public static class DbOperations
                 if (psm.QValue <= 0.01)
                 {
                     // Fetch existing data in bulk
-                    var existingData = psmsInDB
+                    var existingData = psmsInDb
                         .FirstOrDefault(p => p.FileName == psm.FileName &&
                                              p.FullSequence == psm.FullSequence);
                     //.ToList();
@@ -195,7 +227,8 @@ public static class DbOperations
         }
     }
 
-    public static List<(PSM, PSM)> GetFullSequencesOverlaps(PsmContext context, List<PSM> psms)
+    public static List<(PSM, PSM)> GetFullSequencesOverlaps(PsmContext context,
+        List<PSM> psms)
     {
 
         var databasePsms = context.PSMs.ToList();
@@ -309,16 +342,39 @@ public static class DbOperations
         //show plot grid
         GenericChartExtensions.Show(grid);
     }
+    
+    public static GenericChart.GenericChart GetTransformationScatterPlot(List<(PSM, PSM, PSM)> data)
+    {
+        //calculate R^2 value
+        var pre_rSquared = GoodnessOfFit.RSquared(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item2.ScanRetentionTime).ToArray());
+
+        var post_rSquared = GoodnessOfFit.RSquared(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item3.ScanRetentionTime).ToArray());
+
+        var preTransformation = Chart.Scatter<double, double, string>(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item2.ScanRetentionTime).ToArray(),
+            StyleParam.Mode.Markers, pre_rSquared.ToString());
+
+        var postTransformation = Chart.Scatter<double, double, string>(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item3.ScanRetentionTime).ToArray(),
+            StyleParam.Mode.Markers, post_rSquared.ToString());
+
+        // make the two scatters into the same image using a grid
+        var grid = Chart.Grid(new[]{preTransformation, postTransformation}, 2, 1);
+
+        //remove timeout from puppeteer
+        PuppeteerSharpRendererOptions.launchOptions.Timeout = 0;
+        
+        return grid;
+        // save the plot
+        //grid.SavePNG(@"D:\transformation_scatter_plot.png", EngineType: null, 600, 400);
+        //show plot grid
+    }
     #endregion
 }
-
-public class ArchorOperations
-{
-    public void IdentifyAnchors()
-    {
-    }
-
-
-}
-
 
