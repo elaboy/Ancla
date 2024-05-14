@@ -3,6 +3,7 @@ using MathNet.Numerics;
 using MathNet.Numerics.Statistics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.FSharp.Core;
 using Plotly.NET;
 using Plotly.NET.CSharp;
 using Plotly.NET.ImageExport;
@@ -377,25 +378,57 @@ public static class DbOperations
 
     public static GenericChart.GenericChart GetDistributions(List<(PSM, PSM, PSM)> data)
     {
-        //get residuals from database vs experimental 
-        var preResiduals = data.Select(d => d.Item1.ScanRetentionTime - d.Item2.ScanRetentionTime).ToArray();
+        // calculate R^2 value and z-score for the pre-transformation data
+        var pre_rSquared = GoodnessOfFit.RSquared(
+                       data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+                                  data.Select(d => d.Item2.ScanRetentionTime).ToArray());
 
-        //get residuals from database vs transformedExperimental
+        // calculate z-score for the pre-transformation data
+        var Zscores = GetZscores(data);
 
-        var postResiduals = data.Select(d => d.Item1.ScanRetentionTime - d.Item3.ScanRetentionTime).ToArray();
+        // blue color for the pre-transformation data
+        var preTransformation = Chart.Histogram<double, double, string>(
+                                  Zscores.Item1,
+                                  MarkerColor: new Optional<Color>(Color.fromString("blue"), true));
 
-        //histogram with residuals
-        var preResidualsHistogram = Chart.Histogram<double, double, string>(preResiduals, HistNorm:new Optional<StyleParam.HistNorm>(StyleParam.HistNorm.Density, false));
+        var postTransformation = Chart.Histogram<double, double, string>(
+                       Zscores.Item2,
+                        MarkerColor: new Optional<Color>(Color.fromString("red"), true));
 
-        //histogram with residuals
-        var postResidualsHistogram = Chart.Histogram<double, double, string>(postResiduals, HistNorm: new Optional<StyleParam.HistNorm>(StyleParam.HistNorm.Density, false));
-
-        // make the two histograms into the same image using a grid
-        var grid = Chart.Grid(new[] { preResidualsHistogram, postResidualsHistogram }, 1, 2);
+        // make the two scatters into the same image using a grid
+        var grid = Chart.Grid(new[] { preTransformation, postTransformation },
+            2, 1);
 
         return grid;
     }
 
     #endregion
+
+    public static (double[], double[]) GetZscores(List<(PSM, PSM, PSM)> data)
+    {
+        var preTransformationZscores = new List<double>();
+        var postTransformationZscores = new List<double>();
+
+        // calculate z-score for the pre-transformation data
+        var preMean = data.Select(d => d.Item1.ScanRetentionTime).Mean();
+        var preStdDev = data.Select(d => d.Item1.ScanRetentionTime).StandardDeviation();
+
+        foreach (var psm in data)
+        {
+            preTransformationZscores.Add((psm.Item1.ScanRetentionTime - preMean) / preStdDev);
+        }
+
+        // calculate z-score for the post-transformation data
+        var postMean = data.Select(d => d.Item3.ScanRetentionTime).Mean();
+        var postStdDev = data.Select(d => d.Item3.ScanRetentionTime).StandardDeviation();
+
+        foreach (var psm in data)
+        {
+            postTransformationZscores.Add((psm.Item3.ScanRetentionTime - postMean) / postStdDev);
+        }
+
+        return (preTransformationZscores.ToArray(), postTransformationZscores.ToArray());
+    }
+    
 }
 

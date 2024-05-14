@@ -300,17 +300,12 @@ public class TestDbOperations
             @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
         };
 
-        string dbPath = "DistributionTest";
+        string dbPath = "DistributionTest2";
         bool anyError = false;
 
         DbOperations.DbConnectionInit(dbPath, out anyError);
 
-        string jurkatPath = @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv";
-
-        var psms = PsmService.GetPsms(new() { jurkatPath });
-
-        //remove psms whose file name is "12-18-17_frac3-calib-averaged"
-        psms = psms.Where(p => p.FileName == "12-18-17_frac3-calib-averaged").ToList();
+        var psms = PsmService.GetPsms(psmFilePath);
 
         var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
         optionsBuilder.UseSqlite(@"Data Source = " + dbPath);
@@ -322,10 +317,17 @@ public class TestDbOperations
             DbOperations.AnalizeAndAddPsmsBulk(context, psms);
         }
 
+        string jurkatPath = @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv";
+
+        var psmsJurkat = PsmService.GetPsms(new() { jurkatPath });
+
+        //remove psms whose file name is "12-18-17_frac3-calib-averaged"
+        psmsJurkat = psmsJurkat.Where(p => p.FileName == "12-18-17_frac3-calib-averaged").ToList();
+        
         using (var context = new PsmContext(optionsBuilder.Options))
         {
             // Get the linear model
-            var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, psms);
+            var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, psmsJurkat);
 
             // Fit the linear model
             var linearModel = DbOperations.FitLinearModelToData(overlapsFromDatabase);
