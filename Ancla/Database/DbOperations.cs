@@ -1,5 +1,7 @@
 ﻿using AnchorLib;
 using MathNet.Numerics;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Complex;
 using MathNet.Numerics.Statistics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -253,14 +255,17 @@ public static class DbOperations
 
     public static (double, double) FitLinearModelToData(List<(PSM, PSM)> overlaps)
     {
+        if (overlaps.IsNullOrEmpty())
+            throw new Exception("No overlapping data found.");
+
         //database psms
         var y = overlaps.Select(psmTuple => psmTuple.Item1)
-            .OrderByDescending(p => p.ScanRetentionTime)
+            //.OrderByDescending(p => p.ScanRetentionTime)
             .ToArray();
 
         //experimental psms
         var x = overlaps.Select(psmTuple => psmTuple.Item2)
-            .OrderByDescending(p => p.ScanRetentionTime)
+            //.OrderByDescending(p => p.ScanRetentionTime)
             .ToArray();
 
         (double, double) model = Fit.Line(x.Select(p => p.ScanRetentionTime).ToArray(),
@@ -272,7 +277,29 @@ public static class DbOperations
         return (intercept, slope);
     }
 
-    public static List<(PSM, PSM, PSM)> TransformExperimentalRetentionTimes(List<(PSM, PSM)> overlaps, (double, double) model)
+    //public static Vector<double> FitWeightedRegression(List<(PSM, PSM)> overlaps)
+    //{
+    //    //database psms
+    //    var y = overlaps.Select(psmTuple => psmTuple.Item1)
+    //        .OrderByDescending(p => p.ScanRetentionTime)
+    //        .ToArray();
+
+    //    //experimental psms
+    //    var x = overlaps.Select(psmTuple => psmTuple.Item2)
+    //        .OrderByDescending(p => p.ScanRetentionTime)
+    //        .ToArray();
+
+    //    var x_matrix = Matrix<double>.Build.DenseOfArray(x.Select(p => p.ScanRetentionTime).ToArray());
+    //    var y_vector = Vector<double>.Build.DenseOfArray(y.Select(p => p.ScanRetentionTime).ToArray());
+
+    //    var weights = Matrix<double>.Build.DenseOfArray(y.Select(p => 1 / p.ScanRetentionTime).ToArray());
+
+    //    var vector = MathNet.Numerics.LinearRegression.WeightedRegression.Weighted(x_matrix, y_vector, weights);
+
+    //}
+
+    public static List<(PSM, PSM, PSM)> TransformExperimentalRetentionTimes(List<(PSM, PSM)> overlaps,
+        (double, double) model)
     {
         var intercept = model.Item1;
         var slope = model.Item2;
