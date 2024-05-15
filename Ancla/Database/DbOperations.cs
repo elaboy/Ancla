@@ -477,5 +477,27 @@ public static class DbOperations
             writer.Close();
         }
     }
+
+    public static void SaveAsCSV(List<(PSM, PSM)> data, string path)
+    {
+        // Write the header
+        StreamWriter writer = new StreamWriter(path);
+        using (var csv = new CsvHelper.CsvWriter(writer, CultureInfo.InvariantCulture))
+        {
+            csv.WriteField("FullSequence");
+            csv.WriteField("Database");
+            csv.WriteField("Experimental");
+            csv.NextRecord();
+
+            foreach (var record in data)
+            {
+                csv.WriteField(record.Item1.FullSequence);
+                csv.WriteField(record.Item1.ScanRetentionTime);
+                csv.WriteField(record.Item2.ScanRetentionTime);
+                csv.NextRecord();
+            }
+            writer.Close();
+        }
+    }
 }
 

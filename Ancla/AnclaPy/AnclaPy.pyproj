@@ -4,13 +4,15 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>2191a9ca-88b3-4e2d-bcdb-0f1038461ab0</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Ancla.py</StartupFile>
+    <StartupFile>
+    </StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>AnclaPy</Name>
     <RootNamespace>AnclaPy</RootNamespace>
+    <InterpreterId>CondaEnv|CondaEnv|PyInstallerForPlots</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -22,7 +24,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Ancla.py" />
-    <Compile Include="Plot.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <InterpreterReference Include="CondaEnv|CondaEnv|PyInstallerForPlots" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

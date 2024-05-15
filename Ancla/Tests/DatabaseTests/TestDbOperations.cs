@@ -629,7 +629,7 @@ public class TestDbOperations
             @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
         };
 
-        string dbPath = "DistributionTest2";
+        string dbPath = @"D:\DistributionTest2";
         bool anyError = false;
 
         DbOperations.DbConnectionInit(dbPath, out anyError);
@@ -668,6 +668,56 @@ public class TestDbOperations
 
             // Save data as CSV
             DbOperations.SaveAsCSV(transformedExperimental, @"D:\transformedData.csv");
+        }
+    }
+
+    [Test]
+    public void TestSaveAsCSVRAW()
+    {
+        var psmFilePath = new List<string>()
+        {
+            @"D:\MannPeptideResults/A549_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/GAMG_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HEK293_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Hela_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HepG2AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Jurkat_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/LanCap_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/MCF7_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/RKO_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
+        };
+
+        string dbPath = @"D:\toCSVRAW.db";
+        bool anyError = false;
+
+        DbOperations.DbConnectionInit(dbPath, out anyError);
+
+        var psms = PsmService.GetPsms(psmFilePath);
+
+        var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
+        optionsBuilder.UseSqlite(@"Data Source = " + dbPath);
+
+        List<GenericChart.GenericChart> charts = new();
+
+        using (var context = new PsmContext(optionsBuilder.Options))
+        {
+            DbOperations.AnalizeAndAddPsmsBulk(context, psms);
+        }
+
+        string jurkatPath = @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv";
+
+        var psmsJurkat = PsmService.GetPsms(new() { jurkatPath });
+
+        //remove psms whose file name is "12-18-17_frac3-calib-averaged"
+        psmsJurkat = psmsJurkat.Where(p => p.FileName == "12-18-17_frac3-calib-averaged").ToList();
+
+        using (var context = new PsmContext(optionsBuilder.Options))
+        {
+            // Get the linear model
+            var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, psmsJurkat);
+            // Save data as CSV
+            DbOperations.SaveAsCSV(overlapsFromDatabase, @"D:\transformedData_RAW.csv");
         }
     }
 }
