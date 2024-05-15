@@ -1,6 +1,5 @@
 from numpy._typing import NDArray
 import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
 
 class HelperFunctions(object):
@@ -10,8 +9,13 @@ class HelperFunctions(object):
     def read_results(path: str) -> pd.DataFrame:
         data = pd.read_csv(path)
         return data
+    
+    @staticmethod
+    def save_results(data: pd.DataFrame, path: str) -> None:
+        data.to_csv(path, index=False)
 
 class Visualize(object):
+    import matplotlib.pyplot as plt
     
     @staticmethod
     def scatter_plots(data: pd.DataFrame) -> None:
@@ -24,12 +28,14 @@ class Visualize(object):
     
         from sklearn.metrics import r2_score
 
+        #first plot
         axs[0].scatter(data['Database'], data['Database'], color='red', label='Database vs Database', s=0.3)
         axs[0].scatter(data['Experimental'], data['Database'], color='blue', label='Experimental vs Database', s=0.3)
         axs[0].set_xlabel('Experimental')
         axs[0].set_ylabel('Database')
         axs[0].legend()
-    
+        
+        #second plot
         axs[1].scatter(data['Database'], data['Database'], color='red', label='Database vs Database', s=0.3)
         axs[1].scatter(data['Experimental'], data['Database'], color='blue', label='Experimental vs Database', s=0.3)
         axs[1].scatter(data['PostTransformation'], data['Database'], color='green', label='PostTransformation vs Database', s=0.3)
