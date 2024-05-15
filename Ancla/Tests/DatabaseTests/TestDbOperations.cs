@@ -599,29 +599,6 @@ public class TestDbOperations
 
                     plt2.Add.Bars(histPost.Bins, histPost.GetNormalized());
 
-
-
-                    //plt2.Add.Bars(histPost.Bins, histPost.Counts);
-                    //var boxPlot = new List<Box>()
-                    //{
-                    //    new Box()
-                    //    {
-                    //       Position = 2,
-                    //       BoxMax = zScores.Item1.Max(),
-                    //       BoxMin = zScores.Item1.Min(),
-                    //       BoxMiddle = zScores.Item1.Median(),
-                    //       FillColor = Color.FromColor(System.Drawing.Color.Blue)
-                    //    },
-                    //    new Box()
-                    //    {
-                    //        Position = 3,
-                    //        BoxMax = zScores.Item2.Max(),
-                    //        BoxMin = zScores.Item2.Min(),
-                    //        BoxMiddle = zScores.Item2.Median(),
-                    //        FillColor = Color.FromColor(System.Drawing.Color.Red)
-                    //    },
-                    //};
-
                     //plt2.Add.Boxes(boxPlot);
                     plt2.SavePng(@"D:\zScoresFor" + file.Key + ".png", 1200, 800);
                 }
@@ -633,5 +610,64 @@ public class TestDbOperations
         }
 
 
+    }
+
+    [Test]
+    public void TestSaveAsCSV()
+    {
+        var psmFilePath = new List<string>()
+        {
+            @"D:\MannPeptideResults/A549_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/GAMG_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HEK293_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Hela_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HepG2AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Jurkat_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/LanCap_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/MCF7_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/RKO_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
+        };
+
+        string dbPath = "DistributionTest2";
+        bool anyError = false;
+
+        DbOperations.DbConnectionInit(dbPath, out anyError);
+
+        var psms = PsmService.GetPsms(psmFilePath);
+
+        var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
+        optionsBuilder.UseSqlite(@"Data Source = " + dbPath);
+
+        List<GenericChart.GenericChart> charts = new();
+
+        using (var context = new PsmContext(optionsBuilder.Options))
+        {
+            DbOperations.AnalizeAndAddPsmsBulk(context, psms);
+        }
+
+        string jurkatPath = @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv";
+
+        var psmsJurkat = PsmService.GetPsms(new() { jurkatPath });
+
+        //remove psms whose file name is "12-18-17_frac3-calib-averaged"
+        psmsJurkat = psmsJurkat.Where(p => p.FileName == "12-18-17_frac3-calib-averaged").ToList();
+
+        using (var context = new PsmContext(optionsBuilder.Options))
+        {
+            // Get the linear model
+            var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, psmsJurkat);
+
+            // Fit the linear model
+            var linearModel = DbOperations.FitLinearModelToData(overlapsFromDatabase);
+
+            // Transform the experimental retention times
+            var transformedExperimental = DbOperations.TransformExperimentalRetentionTimes(
+                overlapsFromDatabase,
+                linearModel);
+
+            // Save data as CSV
+            DbOperations.SaveAsCSV(transformedExperimental, @"D:\transformedData.csv");
+        }
     }
 }

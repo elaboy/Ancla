@@ -1,16 +1,13 @@
 ﻿using AnchorLib;
 using MathNet.Numerics;
-using MathNet.Numerics.LinearAlgebra;
-using MathNet.Numerics.LinearAlgebra.Complex;
 using MathNet.Numerics.Statistics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.FSharp.Core;
 using Plotly.NET;
 using Plotly.NET.CSharp;
 using Plotly.NET.ImageExport;
-using Plotly.NET.LayoutObjects;
-using Plotly.NET.TraceObjects;
+using System.Data;
+using System.Globalization;
 using ThermoFisher.CommonCore.Data;
 using Chart = Plotly.NET.CSharp.Chart;
 using GenericChartExtensions = Plotly.NET.GenericChartExtensions;
@@ -106,7 +103,7 @@ public static class DbOperations
             //search for the psm FullSequence in the database
             var existingData = context.PSMs
                 .FirstOrDefault(p => p.FileName == group.First().FileName &&
-                                     p.FullSequence == group.Key && 
+                                     p.FullSequence == group.Key &&
                                      p.QValue <= 0.01);
 
             //if nothing, upload it to the database
@@ -456,6 +453,29 @@ public static class DbOperations
 
         return (preTransformationZscores.ToArray(), postTransformationZscores.ToArray());
     }
-    
+
+    public static void SaveAsCSV(List<(PSM, PSM, PSM)> data, string path)
+    {
+        // Write the header
+        StreamWriter writer = new StreamWriter(path);
+        using (var csv = new CsvHelper.CsvWriter(writer, CultureInfo.InvariantCulture))
+        {
+            csv.WriteField("FullSequence");
+            csv.WriteField("Database");
+            csv.WriteField("Experimental");
+            csv.WriteField("PostTransformation");
+            csv.NextRecord();
+
+            foreach (var record in data)
+            {
+                csv.WriteField(record.Item1.FullSequence);
+                csv.WriteField(record.Item1.ScanRetentionTime);
+                csv.WriteField(record.Item2.ScanRetentionTime);
+                csv.WriteField(record.Item3.ScanRetentionTime);
+                csv.NextRecord();
+            }
+            writer.Close();
+        }
+    }
 }
 

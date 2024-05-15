@@ -3,18 +3,20 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.9.34607.119
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ancla", "Ancla\Ancla.csproj", "{0356EA7C-2764-4CFD-B650-44FF1D9EA0C3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ancla", "Ancla\Ancla.csproj", "{0356EA7C-2764-4CFD-B650-44FF1D9EA0C3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnchorCommandLine", "AnchorCommandLine\AnchorCommandLine.csproj", "{A76B9670-4F8E-4819-93D8-99445FD137C2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AnchorCommandLine", "AnchorCommandLine\AnchorCommandLine.csproj", "{A76B9670-4F8E-4819-93D8-99445FD137C2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnchorLib", "AnchorLib\AnchorLib.csproj", "{A22E7BC0-6973-4C10-BCE6-B804A4668B51}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AnchorLib", "AnchorLib\AnchorLib.csproj", "{A22E7BC0-6973-4C10-BCE6-B804A4668B51}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Database", "Database\Database.csproj", "{C8D11AAF-1A51-47F1-9287-95DE9F724528}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Database", "Database\Database.csproj", "{C8D11AAF-1A51-47F1-9287-95DE9F724528}"
 	ProjectSection(ProjectDependencies) = postProject
 		{A22E7BC0-6973-4C10-BCE6-B804A4668B51} = {A22E7BC0-6973-4C10-BCE6-B804A4668B51}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{6FA894B1-0311-4C8B-9E72-EDC902E6AB17}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tests", "Tests\Tests.csproj", "{6FA894B1-0311-4C8B-9E72-EDC902E6AB17}"
+EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "AnclaPy", "AnclaPy\AnclaPy.pyproj", "{2191A9CA-88B3-4E2D-BCDB-0F1038461AB0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -42,6 +44,8 @@ Global
 		{6FA894B1-0311-4C8B-9E72-EDC902E6AB17}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6FA894B1-0311-4C8B-9E72-EDC902E6AB17}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6FA894B1-0311-4C8B-9E72-EDC902E6AB17}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2191A9CA-88B3-4E2D-BCDB-0F1038461AB0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2191A9CA-88B3-4E2D-BCDB-0F1038461AB0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
