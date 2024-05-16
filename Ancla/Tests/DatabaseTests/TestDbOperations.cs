@@ -705,19 +705,19 @@ public class TestDbOperations
             DbOperations.AnalizeAndAddPsmsBulk(context, psms);
         }
 
-        string jurkatPath = @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv";
+        //string jurkatPath = @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv";
 
-        var psmsJurkat = PsmService.GetPsms(new() { jurkatPath });
+        //var psmsJurkat = PsmService.GetPsms(new() { jurkatPath });
 
-        //remove psms whose file name is "12-18-17_frac3-calib-averaged"
-        psmsJurkat = psmsJurkat.Where(p => p.FileName == "12-18-17_frac3-calib-averaged").ToList();
+        ////remove psms whose file name is "12-18-17_frac3-calib-averaged"
+        //psmsJurkat = psmsJurkat.Where(p => p.FileName == "12-18-17_frac3-calib-averaged").ToList();
 
-        using (var context = new PsmContext(optionsBuilder.Options))
-        {
-            // Get the linear model
-            var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, psmsJurkat);
-            // Save data as CSV
-            DbOperations.SaveAsCSV(overlapsFromDatabase, @"D:\transformedData_RAW.csv");
-        }
+        //using (var context = new PsmContext(optionsBuilder.Options))
+        //{
+        //    // Get the linear model
+        //    var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, psmsJurkat);
+        //    // Save data as CSV
+        //    //DbOperations.SaveAsCSV(overlapsFromDatabase, @"D:\transformedData_RAW.csv");
+        //}
     }
 }

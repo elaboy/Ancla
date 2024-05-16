@@ -190,7 +190,7 @@ class RegressiveModels(object):
         experimental = data['Experimental'].to_list()
     
         #fit the lowess model
-        model = lowess(database, experimental, frac=1./3)
+        model = lowess(database, experimental, frac=1./3, it=4)
     
         return model
 

@@ -90,6 +90,9 @@ public static class DbOperations
 
     public static void AnalizeAndAddPsmsBulk(PsmContext context, List<PSM> psms)
     {
+        //Get rid of ambiguous psms
+        psms = psms.Where(p => p.AmbiguityLevel == "1").ToList();
+
         //group all psms by full sequence 
         var groupedPsms = psms.GroupBy(p => p.FullSequence).ToList();
 
@@ -460,6 +463,7 @@ public static class DbOperations
         StreamWriter writer = new StreamWriter(path);
         using (var csv = new CsvHelper.CsvWriter(writer, CultureInfo.InvariantCulture))
         {
+            csv.WriteField("BaseSequence");
             csv.WriteField("FullSequence");
             csv.WriteField("Database");
             csv.WriteField("Experimental");
@@ -468,6 +472,7 @@ public static class DbOperations
 
             foreach (var record in data)
             {
+                csv.WriteField(record.Item1.BaseSequence);
                 csv.WriteField(record.Item1.FullSequence);
                 csv.WriteField(record.Item1.ScanRetentionTime);
                 csv.WriteField(record.Item2.ScanRetentionTime);
@@ -484,6 +489,7 @@ public static class DbOperations
         StreamWriter writer = new StreamWriter(path);
         using (var csv = new CsvHelper.CsvWriter(writer, CultureInfo.InvariantCulture))
         {
+            csv.WriteField("BaseSequence");
             csv.WriteField("FullSequence");
             csv.WriteField("Database");
             csv.WriteField("Experimental");
@@ -491,6 +497,7 @@ public static class DbOperations
 
             foreach (var record in data)
             {
+                csv.WriteField(record.Item1.BaseSequence);
                 csv.WriteField(record.Item1.FullSequence);
                 csv.WriteField(record.Item1.ScanRetentionTime);
                 csv.WriteField(record.Item2.ScanRetentionTime);

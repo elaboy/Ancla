@@ -25,6 +25,7 @@
   <ItemGroup>
     <Compile Include="Ancla.py" />
     <Compile Include="run_ancla.py" />
+    <Compile Include="simple_model.py" />
   </ItemGroup>
   <ItemGroup>
     <InterpreterReference Include="CondaEnv|CondaEnv|PyInstallerForPlots" />
