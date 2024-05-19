@@ -1,6 +1,8 @@
 from importlib import simple
 from token import OP
 from webbrowser import get
+
+import statsmodels.regression.mixed_linear_model
 from numpy.lib.index_tricks import AxisConcatenator
 from numpy.typing import NDArray
 import torch 
@@ -12,8 +14,8 @@ from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
 
 #import csv as panda dataframe 
-data = pd.read_csv(r"\\192.168.1.115\nas\MSData\PSMs_RAW.csv")
-
+# data = pd.read_csv(r"\192.168.1.115\nas\MSData\PSMs_RAW.csv")
+data = pd.read_csv("/Volumes/NAS/MSData/PSMs_RAW.csv")
 aa_dictionary = {
     "PAD": 0, 'A': 1, 'R': 2, 'N': 3, 'D': 4,
     "C": 5, "Q": 6, "E": 7, "G": 8, "H": 9,
@@ -139,18 +141,53 @@ class SimpleDataset(torch.utils.data.Dataset):
         return torch.tensor(self.full_sequence[idx], dtype=torch.double), torch.tensor(self.retention_times[idx])
 
 if __name__ == "__main__":
-    dataset = SimpleDataset(data)
-    train_dataset, test_dataset = train_test_split(dataset, test_size=0.2, random_state = 42)
-    test_dataset, validation_dataset = train_test_split(test_dataset, test_size=0.1, random_state = 42)
+    #shuffle data 
+    data = data.sample(frac=1).reset_index(drop=True)
     
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, drop_last = True)
-    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, drop_last = True)
-    validation_loader = DataLoader(validation_dataset, batch_size=32, shuffle=False, drop_last = True)
+    dataset = get_tokens(data)
+    # manually split the data into train and test, whitout the use of any package
+    dataset_size = len(dataset[0])
+    train_size = int(0.8 * dataset_size)
+    test_size = dataset_size - train_size
     
-    model = SimpleModel()
-    model.to("cuda" if torch.cuda.is_available() else "cpu")
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    criterion = nn.MSELoss()
+    #get training datasframe and test dataframe from dataset
+    train_df = pd.DataFrame({"BaseSequence": dataset[0][:train_size], "ScanRetentionTime": dataset[1][:train_size]})
+    test_df = pd.DataFrame({"BaseSequence": dataset[0][train_size:], "ScanRetentionTime": dataset[1][train_size:]})
     
-    SimpleModel.train_validate(model, train_loader, validation_loader, optimizer, criterion, 5)
+    train_dataset = train_df.iloc[:, 0], train_df.iloc[:, 1]
+    train_dataset = (np.array(train_dataset[0].tolist()), np.array(train_dataset[1].tolist()))
     
+    test_dataset = test_df.iloc[:, 0], test_df.iloc[:, 1]
+    test_dataset = (np.array(test_dataset[0].tolist()), np.array(test_dataset[1].tolist()))
+    
+    
+    X = train_dataset[0]
+    y = train_dataset[1]
+    # 
+    # #split y into a list of (1,) arrays
+    # y = np.array([np.array([i]) for i in y])
+    #normalize the data
+    # from sklearn.preprocessing import StandardScaler
+    # sc = StandardScaler()
+    # X = sc.fit_transform(X)
+    # y = sc.fit_transform(y)
+    
+    #split the data into training and testing
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # linear regression model from sklearn
+    from sklearn.linear_model import LinearRegression
+    regressor = LinearRegression()
+    regressor.fit(X_train, y_train)
+    
+    #predict the test set results
+    y_pred = regressor.predict(X_test)
+    
+    #plot the results
+    import matplotlib.pyplot as plt
+    plt.scatter(y_pred, y_test, color='red')
+    plt.title('Retention Time vs Base Sequence')
+    plt.xlabel('Base Sequence')
+    plt.ylabel('Retention Time')
+    plt.show()
+
