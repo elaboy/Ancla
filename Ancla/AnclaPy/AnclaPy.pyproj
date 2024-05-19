@@ -12,7 +12,7 @@
     <OutputPath>.</OutputPath>
     <Name>AnclaPy</Name>
     <RootNamespace>AnclaPy</RootNamespace>
-    <InterpreterId>CondaEnv|CondaEnv|PyInstallerForPlots</InterpreterId>
+    <InterpreterId>CondaEnv|CondaEnv|PyInstaller</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -28,6 +28,7 @@
     <Compile Include="simple_model.py" />
   </ItemGroup>
   <ItemGroup>
+    <InterpreterReference Include="CondaEnv|CondaEnv|PyInstaller" />
     <InterpreterReference Include="CondaEnv|CondaEnv|PyInstallerForPlots" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
