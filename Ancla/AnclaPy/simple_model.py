@@ -14,8 +14,8 @@ from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
 
 #import csv as panda dataframe 
-# data = pd.read_csv(r"\192.168.1.115\nas\MSData\PSMs_RAW.csv")
-data = pd.read_csv("/Volumes/NAS/MSData/PSMs_RAW.csv")
+data = pd.read_csv(r"\\192.168.1.115\nas\MSData\PSMs_RAW.csv")
+# data = pd.read_csv("/Volumes/NAS/MSData/PSMs_RAW.csv")
 aa_dictionary = {
     "PAD": 0, 'A': 1, 'R': 2, 'N': 3, 'D': 4,
     "C": 5, "Q": 6, "E": 7, "G": 8, "H": 9,
@@ -141,53 +141,96 @@ class SimpleDataset(torch.utils.data.Dataset):
         return torch.tensor(self.full_sequence[idx], dtype=torch.double), torch.tensor(self.retention_times[idx])
 
 if __name__ == "__main__":
-    #shuffle data 
-    data = data.sample(frac=1).reset_index(drop=True)
-    
-    dataset = get_tokens(data)
-    # manually split the data into train and test, whitout the use of any package
-    dataset_size = len(dataset[0])
-    train_size = int(0.8 * dataset_size)
-    test_size = dataset_size - train_size
-    
-    #get training datasframe and test dataframe from dataset
-    train_df = pd.DataFrame({"BaseSequence": dataset[0][:train_size], "ScanRetentionTime": dataset[1][:train_size]})
-    test_df = pd.DataFrame({"BaseSequence": dataset[0][train_size:], "ScanRetentionTime": dataset[1][train_size:]})
-    
-    train_dataset = train_df.iloc[:, 0], train_df.iloc[:, 1]
-    train_dataset = (np.array(train_dataset[0].tolist()), np.array(train_dataset[1].tolist()))
-    
-    test_dataset = test_df.iloc[:, 0], test_df.iloc[:, 1]
-    test_dataset = (np.array(test_dataset[0].tolist()), np.array(test_dataset[1].tolist()))
-    
-    
-    X = train_dataset[0]
-    y = train_dataset[1]
-    # 
-    # #split y into a list of (1,) arrays
-    # y = np.array([np.array([i]) for i in y])
-    #normalize the data
-    # from sklearn.preprocessing import StandardScaler
-    # sc = StandardScaler()
-    # X = sc.fit_transform(X)
-    # y = sc.fit_transform(y)
-    
-    #split the data into training and testing
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # linear regression model from sklearn
-    from sklearn.linear_model import LinearRegression
-    regressor = LinearRegression()
-    regressor.fit(X_train, y_train)
-    
-    #predict the test set results
-    y_pred = regressor.predict(X_test)
-    
-    #plot the results
+    import numpy as np
+    import pandas as pd
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import MinMaxScaler
+    import tensorflow as tf
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import Embedding, Conv1D, MaxPooling1D, LSTM, Dense, Dropout, Bidirectional
+    from tensorflow.keras.optimizers import Adam
+    from sklearn.metrics import mean_absolute_error, r2_score
     import matplotlib.pyplot as plt
-    plt.scatter(y_pred, y_test, color='red')
-    plt.title('Retention Time vs Base Sequence')
-    plt.xlabel('Base Sequence')
-    plt.ylabel('Retention Time')
+
+    # Check if GPU is available and set TensorFlow to use it
+    print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+
+    # Load your data
+    data = pd.read_csv(r"\\192.168.1.115\nas\MSData\PSMs_RAW.csv")
+
+    # Extract peptide sequences and retention times from the DataFrame
+    peptides = data["BaseSequence"].tolist()
+    retention_times = data["ScanRetentionTime"].tolist()
+
+    # Pad sequences to a fixed length
+    max_length = 100
+    padded_sequences = [seq.ljust(max_length, '0') for seq in peptides]
+
+    # Define the dictionary mapping characters to indices
+    char_to_index = {char: i + 1 for i, char in enumerate('ACDEFGHIKLMNPQRSTVWYUX')}
+    # Add padding character '0' with index 0
+    char_to_index['0'] = 0
+
+    # Convert sequences to integers
+    sequences_as_int = [[char_to_index[char] for char in seq] for seq in padded_sequences]
+
+    # Convert to numpy arrays
+    X_seq = np.array(sequences_as_int)
+    y = np.array(retention_times)
+
+    # Normalize the retention times
+    scaler = MinMaxScaler()
+    y = scaler.fit_transform(y.reshape(-1, 1)).flatten()
+
+    # Train-test split
+    X_seq_train, X_seq_test, y_train, y_test = train_test_split(X_seq, y, test_size=0.2, random_state=42)
+
+    # Define the neural network model
+    model = Sequential([
+        Embedding(input_dim=len(char_to_index), output_dim=64, input_length=max_length),
+        Conv1D(filters=128, kernel_size=3, activation='relu'),
+        MaxPooling1D(pool_size=2),
+        Bidirectional(LSTM(128, return_sequences=True)),
+        Dropout(0.3),
+        Bidirectional(LSTM(64, return_sequences=True)),
+        Dropout(0.3),
+        Bidirectional(LSTM(32)),
+        Dense(128, activation='relu'),
+        Dropout(0.3),
+        Dense(64, activation='relu'),
+        Dropout(0.3),
+        Dense(1, activation='linear')
+    ])
+
+    # Compile the model
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_squared_error')
+
+    # Display the model summary
+    print(model.summary())
+
+    # Define EarlyStopping callback
+    from tensorflow.keras.callbacks import EarlyStopping
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5)
+
+    # Train the model
+    history = model.fit(X_seq_train, y_train, epochs=50, batch_size=64, validation_split=0.2, callbacks=[early_stopping])
+
+    # Predict and scatter plot
+    y_pred = model.predict(X_seq_test)
+    
+    #save model
+    model.save("model.h5")
+
+    # Scatter plot
+    plt.figure(figsize=(10, 6))
+    plt.scatter(y_test, y_test, label='True Values', color='blue', s=0.3)
+    plt.scatter(y_pred, y_test, label='Predictions', color='red', s=0.3)
+    plt.xlabel('Predicted retention time')
+    plt.ylabel('True retention time')
+    plt.legend()
+    # R2 score
+    r2 = r2_score(y_test, y_pred)
+    plt.text(0.5, 0.5, f'R2 score: {r2}', fontsize=12)
     plt.show()
+
 
