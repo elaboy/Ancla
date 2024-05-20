@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import learning_curve, train_test_split
 
 #import csv as panda dataframe 
 data = pd.read_csv(r"\\192.168.1.115\nas\MSData\PSMs_RAW.csv")
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     y = np.array(retention_times)
 
     # Normalize the retention times
-    scaler = MinMaxScaler()
+    scaler = MinMaxScaler((-1, 1))
     y = scaler.fit_transform(y.reshape(-1, 1)).flatten()
 
     # Train-test split
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
     # Define the neural network model
     model = Sequential([
-        Embedding(input_dim=len(char_to_index), output_dim=64, input_length=max_length),
+        Embedding(input_dim=len(char_to_index), output_dim=128, input_length=max_length),
         Conv1D(filters=128, kernel_size=3, activation='relu'),
         MaxPooling1D(pool_size=2),
         Bidirectional(LSTM(128, return_sequences=True)),
@@ -201,9 +201,17 @@ if __name__ == "__main__":
         Dropout(0.3),
         Dense(1, activation='linear')
     ])
+    
+    #import keras
+    import keras
+
+    lr_scheldule = keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=1e-3,
+            decay_steps=30000,
+            decay_rate=0.9)
 
     # Compile the model
-    model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_squared_error')
+    model.compile(optimizer=Adam(learning_rate = lr_scheldule), loss='mean_squared_error')
 
     # Display the model summary
     print(model.summary())
@@ -213,13 +221,14 @@ if __name__ == "__main__":
     early_stopping = EarlyStopping(monitor='val_loss', patience=5)
 
     # Train the model
-    history = model.fit(X_seq_train, y_train, epochs=50, batch_size=64, validation_split=0.2, callbacks=[early_stopping])
+    history = model.fit(X_seq_train, y_train, epochs=50, batch_size=64,
+                        validation_split=0.2, callbacks=[early_stopping])
 
     # Predict and scatter plot
     y_pred = model.predict(X_seq_test)
     
     #save model
-    model.save("model.h5")
+    # model.save("model.h5")
 
     # Scatter plot
     plt.figure(figsize=(10, 6))
