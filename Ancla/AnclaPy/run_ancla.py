@@ -19,7 +19,9 @@ if __name__ == "__main__":
 
     #read the data
     data = HelperFunctions.read_results(args.input)
-   
+    HelperFunctions.standardScaler(data)
+    data = HelperFunctions.reject_outliers(data)
+    
     #fit and transform the data
     if args.reg == 'linear':
         model = RegressiveModels.fit_linear(data)

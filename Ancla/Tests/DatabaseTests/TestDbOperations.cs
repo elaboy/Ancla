@@ -629,7 +629,7 @@ public class TestDbOperations
             @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
         };
 
-        string dbPath = @"D:\DistributionTest2";
+        string dbPath = @"D:\JurkatSubset";
         bool anyError = false;
 
         DbOperations.DbConnectionInit(dbPath, out anyError);
@@ -646,7 +646,7 @@ public class TestDbOperations
             DbOperations.AnalizeAndAddPsmsBulk(context, psms);
         }
 
-        string jurkatPath = @"D:\OtherPeptideResultsForTraining\JurkatMultiProtease_AllPSMs.psmtsv";
+        string jurkatPath = @"D:\OtherPeptideResultsForTraining\trypsin_jurkat_subset.psmtsv";
 
         var psmsJurkat = PsmService.GetPsms(new() { jurkatPath });
 
@@ -668,6 +668,69 @@ public class TestDbOperations
 
             // Save data as CSV
             DbOperations.SaveAsCSV(transformedExperimental, @"D:\transformedData.csv");
+        }
+    }
+
+    [Test]
+    public void TestSaveAsCSVSubset()
+    {
+        var psmFilePath = new List<string>()
+        {
+            @"D:\MannPeptideResults/A549_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/GAMG_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HEK293_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Hela_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/HepG2AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Jurkat_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/LanCap_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/MCF7_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/RKO_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
+        };
+
+        string dbPath = @"D:\JurkatSubsetMatches_BaseSequences.db";
+        bool anyError = false;
+
+        DbOperations.DbConnectionInit(dbPath, out anyError);
+
+        //var psms = PsmService.GetPsms(psmFilePath);
+
+        var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
+        optionsBuilder.UseSqlite(@"Data Source = " + dbPath);
+
+        //using (var context = new PsmContext(optionsBuilder.Options))
+        //{
+        //    DbOperations.AnalizeAndAddPsmsBulk(context, psms);
+        //}
+
+        string jurkatPath = @"D:\OtherPeptideResultsForTraining\trypsin_jurkat_subset.psmtsv";
+
+        var psmsJurkat = PsmService.GetPsms(new() { jurkatPath });
+
+        //group by file name
+        var setsFromJurkat = psmsJurkat.GroupBy(x => x.FileName);
+
+        using (var context = new PsmContext(optionsBuilder.Options))
+        {
+            foreach (var file in setsFromJurkat)
+            {
+                //Get files psms 
+                var filePsms = file.ToList();
+
+                // Get the linear model
+                var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, filePsms);
+
+                // Fit the linear model
+                var linearModel = DbOperations.FitLinearModelToData(overlapsFromDatabase);
+
+                // Transform the experimental retention times
+                var transformedExperimental = DbOperations.TransformExperimentalRetentionTimes(
+                                       overlapsFromDatabase,
+                                                          linearModel);
+
+                // Save data as CSV
+                DbOperations.SaveAsCSV(transformedExperimental, @"D:\transformedData_" + file.Key + ".csv");
+            }
         }
     }
 

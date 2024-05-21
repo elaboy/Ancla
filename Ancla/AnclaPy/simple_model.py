@@ -1,7 +1,3 @@
-from importlib import simple
-from token import OP
-from webbrowser import get
-
 import statsmodels.regression.mixed_linear_model
 from numpy.lib.index_tricks import AxisConcatenator
 from numpy.typing import NDArray
@@ -14,8 +10,10 @@ from torch.utils.data import Dataset
 from sklearn.model_selection import learning_curve, train_test_split
 
 #import csv as panda dataframe 
-data = pd.read_csv(r"\\192.168.1.115\nas\MSData\PSMs_RAW.csv")
+# data = pd.read_csv(r"\\192.168.1.115\nas\MSData\PSMs_RAW.csv")
 # data = pd.read_csv("/Volumes/NAS/MSData/PSMs_RAW.csv")
+data = pd.read_csv(r"D:\PSMs_RAW.csv")
+
 aa_dictionary = {
     "PAD": 0, 'A': 1, 'R': 2, 'N': 3, 'D': 4,
     "C": 5, "Q": 6, "E": 7, "G": 8, "H": 9,
@@ -155,8 +153,8 @@ if __name__ == "__main__":
     # Check if GPU is available and set TensorFlow to use it
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 
-    # Load your data
-    data = pd.read_csv(r"\\192.168.1.115\nas\MSData\PSMs_RAW.csv")
+    # # Load your data
+    # data = pd.read_csv(r"\\192.168.1.115\nas\MSData\PSMs_RAW.csv")
 
     # Extract peptide sequences and retention times from the DataFrame
     peptides = data["BaseSequence"].tolist()
@@ -187,18 +185,18 @@ if __name__ == "__main__":
 
     # Define the neural network model
     model = Sequential([
-        Embedding(input_dim=len(char_to_index), output_dim=128, input_length=max_length),
-        Conv1D(filters=128, kernel_size=3, activation='relu'),
+        Embedding(input_dim=len(char_to_index), output_dim=64, input_length=max_length),
+        Conv1D(filters=64, kernel_size=3, activation='relu'),
         MaxPooling1D(pool_size=2),
         Bidirectional(LSTM(128, return_sequences=True)),
         Dropout(0.3),
         Bidirectional(LSTM(64, return_sequences=True)),
         Dropout(0.3),
         Bidirectional(LSTM(32)),
-        Dense(128, activation='relu'),
-        Dropout(0.3),
-        Dense(64, activation='relu'),
-        Dropout(0.3),
+        # Dense(128, activation='relu'),
+        # Dropout(0.3),
+        # Dense(64, activation='relu'),
+        # Dropout(0.3),
         Dense(1, activation='linear')
     ])
     

@@ -479,7 +479,6 @@ public static class DbOperations
                 csv.WriteField(record.Item3.ScanRetentionTime);
                 csv.NextRecord();
             }
-            writer.Close();
         }
     }
 
