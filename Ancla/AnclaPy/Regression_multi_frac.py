@@ -122,14 +122,14 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
 
     #train the model 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.5)
 
     train_losses = []
     val_losses = []
 
     model.to(device)
 
-    for epoch in range(15):
+    for epoch in range(50):
         model.train()
         running_loss = 0.0
         for inputs, targets in train_loader:
@@ -154,7 +154,7 @@ if __name__ == "__main__":
         val_loss /= len(test_loader)
         val_losses.append(val_loss)
         
-        print(f"Epoch {epoch+1}/{15}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
+        print(f"Epoch {epoch+1}/{50}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
 
     # Plot training history
     import matplotlib.pyplot as plt
