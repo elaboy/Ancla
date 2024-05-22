@@ -4,29 +4,58 @@ import pandas as pd
 import numpy as np
 from Ancla import Featurizer
 import torch 
+import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.functional import F
 
-batch_size = 32
+batch_size = 8
 
 class Model(torch.nn.Module):
     def __init__(self):
         super(Model, self).__init__()
-        self.cnn = torch.nn.Conv2d(batch_size, 32, 3, 1, 1)
-        # self.pool = torch.nn.MaxPool2d(2, 2)
-        self.cnn2 = torch.nn.Conv2d(batch_size, 32, 3, 1, 1)
-        # self.pool2 = torch.nn.MaxPool2d(2, 2)
-        self.fc1 = torch.nn.Linear(8 * 100, 1)
+        # Convolutional layers
+        self.conv1 = nn.Conv1d(in_channels=8, out_channels=16, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm1d(16)
+        self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
+        
+        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm1d(32)
+        
+        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm1d(64)
+        
+        # Calculate the size of the flattened features after the last pooling layer
+        self._to_linear = None
+        self._get_to_linear_dim()
+        
+        # Fully connected layers
+        self.fc1 = nn.Linear(self._to_linear, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 1)
+        
+        self.dropout = nn.Dropout(0.4)
 
         self.double()
-        
+
+    def _get_to_linear_dim(self):
+        with torch.no_grad():
+            x = torch.zeros(1, 8, 100)
+            x = self.pool(F.relu(self.bn1(self.conv1(x))))
+            x = self.pool(F.relu(self.bn2(self.conv2(x))))
+            x = self.pool(F.relu(self.bn3(self.conv3(x))))
+            self._to_linear = x.view(1, -1).size(1)
+    
     def forward(self, x):
-        x = F.relu(self.cnn(x))
-        # x = self.pool(x)
-        x = F.relu(self.cnn2(x))
-        # x = self.pool2(x)
-        x = x.view(x.size(0), -1)
+        x = self.pool(F.relu(self.bn1(self.conv1(x))))
+        x = self.pool(F.relu(self.bn2(self.conv2(x))))
+        x = self.pool(F.relu(self.bn3(self.conv3(x))))
+        
+        x = x.view(-1, self._to_linear)  # Flatten the tensor
         x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        
         return x
     
 class RTDataset(Dataset):
@@ -62,26 +91,67 @@ if __name__ == "__main__":
 
     training_features = Featurizer.featurize_all_normalized(X)
 
-    training_dataset = RTDataset(training_features, y)
 
-    training_loader = DataLoader(training_dataset, batch_size=batch_size, shuffle=True)
+    #divide training features into train and test
+    from sklearn.model_selection import train_test_split
+
+    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.2, random_state=42)
+
+    # Create data sets
+    train_dataset = RTDataset(X_train, y_train)
+    test_dataset = RTDataset(X_test, y_test)
+
+    # Create data loaders
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = Model()
 
     criterion = torch.nn.MSELoss()
 
     #train the model 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    for epoch in range(25):
-        for i, data in enumerate(training_loader):
-            inputs, labels = data
+    train_losses = []
+    val_losses = []
+
+    model.to(device)
+
+    for epoch in range(50):
+        model.train()
+        running_loss = 0.0
+        for inputs, targets in train_loader:
             optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels.view(-1, 1))
+            outputs = model(inputs.to(device))
+            loss = criterion(outputs, targets.view(-1, 1).to(device))
             loss.backward()
             optimizer.step()
-            # print every 1000 mini-batches
-            if i % 1000 == 0:
-                print(f"Epoch: {epoch}, Loss: {loss.item()}")
+            running_loss += loss.item()
+        
+        train_loss = running_loss / len(train_loader)
+        train_losses.append(train_loss)
+        
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for inputs, targets in test_loader:
+                outputs = model(inputs.to(device))
+                loss = criterion(outputs, targets.view(-1, 1).to(device))
+                val_loss += loss.item()
+        
+        val_loss /= len(test_loader)
+        val_losses.append(val_loss)
+        
+        print(f"Epoch {epoch+1}/{50}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
 
+    # Plot training history
+    import matplotlib.pyplot as plt
+
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.show()
