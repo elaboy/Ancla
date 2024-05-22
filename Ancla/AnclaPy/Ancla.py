@@ -104,7 +104,22 @@ class Featurizer(object):
         featurized_data = Parallel(n_jobs=-1)(delayed(Featurizer.featurize)(data) for data in data)
 
         return np.stack(featurized_data)
+    
+    @staticmethod
+    def normalize_targets(targets: list) -> NDArray:
+        from sklearn.preprocessing import StandardScaler
+        
+        #create the scaler
+        scaler = StandardScaler()
+        
+        # make it a (targets_length, 1)
+        targets = np.array(targets).reshape(-1, 1)
 
+        #fit the scaler and transform the columns Database, Experimental and PostTransformation
+        targets = scaler.fit_transform(targets)
+        
+        return targets
+        
     @staticmethod
     def min_max_scaler(data: NDArray) -> NDArray:
         # Assuming 'data' is your 3D array
@@ -118,7 +133,7 @@ class Featurizer(object):
         normalized_data = (data - mean) / std_dev
 
         return normalized_data
-    
+
     @staticmethod
     def featurize_all_normalized(data: list) -> NDArray:
         return Featurizer.min_max_scaler(Featurizer.featurize_all(data))
@@ -143,7 +158,8 @@ class HelperFunctions(object):
         scaler = StandardScaler()
         
         #fit the scaler and transform the columns Database, Experimental and PostTransformation
-        data[['Database', 'Experimental', 'PostTransformation']] = scaler.fit_transform(data[['Database', 'Experimental', 'PostTransformation']])
+        data[['Database', 'Experimental', 'PostTransformation']] = scaler.fit_transform(
+            data[['Database', 'Experimental', 'PostTransformation']])
 
     @staticmethod
     def reject_outliers(data: pd.DataFrame) -> pd.DataFrame:

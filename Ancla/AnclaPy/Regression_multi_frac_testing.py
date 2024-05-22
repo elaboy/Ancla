@@ -96,78 +96,59 @@ if __name__ == "__main__":
     frac10 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac10-calib-averaged.csv")
 
     training_data = pd.read_csv(r"D:\OtherPeptideResultsForTraining\fractionOverlapJurkatFromMannTryptic.csv")
-
-    X = training_data["BaseSequence"].tolist()
-    y = training_data["ScanRetentionTime"].tolist()
-
-    training_features = Featurizer.featurize_all_normalized(X)
-
-    y = Featurizer.normalize_targets(y)
-
-    #divide training features into train and test
-    from sklearn.model_selection import train_test_split
-
-    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.2, random_state=42)
-
-    # Create data sets
-    train_dataset = RTDataset(X_train, y_train)
-    test_dataset = RTDataset(X_test, y_test)
-
-    # Create data loaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    model = Model()
-
-    criterion = torch.nn.MSELoss()
-
-    #train the model 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.5)
-
-    train_losses = []
-    val_losses = []
-
-    model.to(device)
-
-    # training loop
-    for epoch in range(50):
-        model.train()
-        running_loss = 0.0
-        for inputs, targets in train_loader:
-            optimizer.zero_grad()
-            outputs = model(inputs.to(device))
-            loss = criterion(outputs, targets.to(device))
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        
-        train_loss = running_loss / len(train_loader)
-        train_losses.append(train_loss)
-        
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for inputs, targets in test_loader:
-                outputs = model(inputs.to(device))
-                loss = criterion(outputs, targets.to(device))
-                val_loss += loss.item()
-        
-        val_loss /= len(test_loader)
-        val_losses.append(val_loss)
-        
-        print(f"Epoch {epoch+1}/{50}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
-
-    # Save the model
-    torch.save(model.state_dict(), r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24.pth")
     
-    # Plot training history
-    import matplotlib.pyplot as plt
+    # load the model 
+    model = Model()
+    model.load_state_dict(torch.load(r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24.pth"))
+    # Test model with predicting the fractions and making 10 plots with R^2
 
-    plt.plot(train_losses, label='Train Loss', color='r')
-    plt.plot(val_losses, label='Validation Loss', color='b')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.savefig("training_history_5_22_24.png")
+    # datasets
+    fraction_datasets = []
+    fractions_overlaps = []
+
+    for fraction in [frac1, frac2, frac3, frac4, frac5, frac6, frac7, frac8, frac9, frac10]:
+        
+        X = fraction["BaseSequence"].tolist()
+        y = fraction["Experimental"].tolist()
+
+        #search in the training data for the X sequences and get the retention time
+        overlaps = []
+        for sequence in X:
+            if sequence in training_data["BaseSequence"].tolist():
+                overlaps.append(
+                    training_data["ScanRetentionTime"].tolist()[training_data["BaseSequence"].tolist().index(sequence)])
+
+        fraction_features = Featurizer.featurize_all_normalized(X)
+
+        y = Featurizer.normalize_targets(y)
+
+        fraction_dataset = RTDataset(fraction_features, y)
+
+        fraction_datasets.append(fraction_dataset)
+        fractions_overlaps.append(overlaps)
+    
+    model.eval()
+
+    predictions = []
+    for fraction in fraction_datasets:
+        predictions.append(model(fraction.X))
+
+    # plot the results and calculate R^2
+    from sklearn.metrics import r2_score
+
+    r2_scores = []
+
+    # use the feature to search in the training data for the actual RT and then compare with the prediction
+    for i, fraction in enumerate(fraction_datasets):
+        actual_RT = fractions_overlaps[i]
+        predicted_RT = predictions[i].detach().numpy()
+
+        r2 = r2_score(actual_RT, predicted_RT)
+        r2_scores.append(r2)
+
+        plt.figure()
+        plt.scatter(predicted_RT, actual_RT)
+        plt.ylabel("Actual RT")
+        plt.xlabel("Predicted RT")
+        plt.title(f"Fraction {i+1}, R^2: {r2}")
+        plt.savefig(f"fraction_{i+1}_5_22_24.png")
