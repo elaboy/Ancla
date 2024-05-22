@@ -8,20 +8,20 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.functional import F
 
-batch_size = 8
+batch_size = 64
 
 class Model(torch.nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv1d(in_channels=8, out_channels=16, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm1d(16)
+        self.conv1 = nn.Conv1d(in_channels=batch_size, out_channels=batch_size * 2, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm1d(batch_size * 2)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
         
-        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm1d(32)
+        self.conv2 = nn.Conv1d(in_channels=batch_size * 2, out_channels=batch_size, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm1d(batch_size*2)
         
-        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv1d(in_channels=batch_size, out_channels=32, kernel_size=3, padding=1)
         self.bn3 = nn.BatchNorm1d(64)
         
         # Calculate the size of the flattened features after the last pooling layer
