@@ -37,6 +37,18 @@ class Model(torch.nn.Module):
 
         self.double()
 
+        #initialize weights
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                nn.init.constant_(m.bias, 0)
+
     def _get_to_linear_dim(self):
         with torch.no_grad():
             x = torch.zeros(1, 8, 100)
@@ -85,12 +97,10 @@ if __name__ == "__main__":
 
     training_data = pd.read_csv(r"D:\OtherPeptideResultsForTraining\fractionOverlapJurkatFromMannTryptic.csv")
 
-
     X = training_data["BaseSequence"].tolist()
     y = training_data["ScanRetentionTime"].tolist()
 
     training_features = Featurizer.featurize_all_normalized(X)
-
 
     #divide training features into train and test
     from sklearn.model_selection import train_test_split
@@ -112,14 +122,14 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
 
     #train the model 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)
 
     train_losses = []
     val_losses = []
 
     model.to(device)
 
-    for epoch in range(50):
+    for epoch in range(15):
         model.train()
         running_loss = 0.0
         for inputs, targets in train_loader:
@@ -144,7 +154,7 @@ if __name__ == "__main__":
         val_loss /= len(test_loader)
         val_losses.append(val_loss)
         
-        print(f"Epoch {epoch+1}/{50}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
+        print(f"Epoch {epoch+1}/{15}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
 
     # Plot training history
     import matplotlib.pyplot as plt
