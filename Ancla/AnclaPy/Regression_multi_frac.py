@@ -8,21 +8,21 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.functional import F
 
-batch_size = 32
+batch_size = 1024
 
 class Model(torch.nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv1d(in_channels=8, out_channels=16, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm1d(8 * 2)
+        self.conv1 = nn.Conv1d(in_channels=7, out_channels=14, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm1d(14)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
         
-        self.conv2 = nn.Conv1d(in_channels=16, out_channels=16, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm1d(8 * 2)
+        self.conv2 = nn.Conv1d(in_channels=14, out_channels=14, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm1d(14)
         
-        self.conv3 = nn.Conv1d(in_channels=16, out_channels=8, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm1d(8)
+        self.conv3 = nn.Conv1d(in_channels=14, out_channels=7, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm1d(7)
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
@@ -31,8 +31,8 @@ class Model(torch.nn.Module):
         # Fully connected layers
         self.fc1 = nn.Linear(self._to_linear, 128)
         self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 32)
-        self.fc4 = nn.Linear(32, 1)
+        # self.fc3 = nn.Linear(64, 32)
+        self.fc4 = nn.Linear(64, 1)
         
         self.dropout = nn.Dropout(0.2)
 
@@ -52,7 +52,7 @@ class Model(torch.nn.Module):
 
     def _get_to_linear_dim(self):
         with torch.no_grad():
-            x = torch.zeros(1, 8, 100)
+            x = torch.zeros(1, 7, 100)
             x = self.pool(F.relu(self.bn1(self.conv1(x))))
             x = self.pool(F.relu(self.bn2(self.conv2(x))))
             x = self.pool(F.relu(self.bn3(self.conv3(x))))
@@ -67,9 +67,9 @@ class Model(torch.nn.Module):
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = F.relu(self.fc2(x))
-        x = self.dropout(x)
-        x = self.fc3(x)
-        x = F.relu(x)
+        # x = self.dropout(x)
+        # x = self.fc3(x)
+        # x = F.relu(x)
         x = self.dropout(x)
         x = self.fc4(x)
         
@@ -112,7 +112,8 @@ if __name__ == "__main__":
     #divide training features into train and test
     from sklearn.model_selection import train_test_split
 
-    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.1, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.8,
+                                                         shuffle = True, random_state=42)
 
     # Create data sets
     train_dataset = RTDataset(X_train, y_train)
@@ -129,7 +130,11 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
 
     #train the model 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.7)
+
+    # RecudeLRonPlateau
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
+                                                        factor=0.1, patience=5)
 
     train_losses = []
     val_losses = []
@@ -137,7 +142,7 @@ if __name__ == "__main__":
     model.to(device)
 
     # training loop
-    for epoch in range(150):
+    for epoch in range(500):
         model.train()
         running_loss = 0.0
         for inputs, targets in train_loader:
@@ -145,6 +150,10 @@ if __name__ == "__main__":
             outputs = model(inputs.to(device))
             loss = criterion(outputs, targets.to(device))
             loss.backward()
+
+            #gradient clipping
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+
             optimizer.step()
             running_loss += loss.item()
         
@@ -162,10 +171,12 @@ if __name__ == "__main__":
         val_loss /= len(test_loader)
         val_losses.append(val_loss)
         
-        print(f"Epoch {epoch+1}/{150}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
+        print(f"Epoch {epoch+1}/{500}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
+        scheduler.step(val_loss)
 
     # Save the model
-    torch.save(model.state_dict(), r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24_V5_Adam_150Epochs_lr_001.pth")
+    torch.save(model.state_dict(),
+                r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24_V8_SGD_07Moment_500Epochs_lr_001.pth")
     
     # Plot training history
     import matplotlib.pyplot as plt
@@ -175,4 +186,4 @@ if __name__ == "__main__":
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
-    plt.savefig("training_history_5_22_24.png")
+    plt.savefig("training_history_5_22_24_V7.png")

@@ -76,10 +76,10 @@ class Featurizer(object):
                     z5_scale.append(0)
 
         # compute the charge
-        charge = [peptides.Peptide(residue).charge() for residue in data]
+        # charge = [peptides.Peptide(residue).charge() for residue in data]
 
         #pad the charge array with zeros until the length is 100
-        charge = [charge + [0] * (100 - len(charge))]
+        # charge = [charge + [0] * (100 - len(charge))]
 
         # add the features into the final array, vstacked
         final_array = np.vstack(
@@ -90,8 +90,8 @@ class Featurizer(object):
              np.array(z3_scale),
              np.array(z4_scale),
              np.array(z5_scale), 
-             np.array(charge)]
-            )
+            #  np.array(charge)]
+            ])
 
         return final_array
     

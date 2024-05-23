@@ -14,15 +14,15 @@ class Model(torch.nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv1d(in_channels=8, out_channels=16, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm1d(8 * 2)
+        self.conv1 = nn.Conv1d(in_channels=7, out_channels=14, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm1d(14)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
         
-        self.conv2 = nn.Conv1d(in_channels=16, out_channels=16, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm1d(8 * 2)
+        self.conv2 = nn.Conv1d(in_channels=14, out_channels=28, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm1d(28)
         
-        self.conv3 = nn.Conv1d(in_channels=16, out_channels=8, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm1d(8)
+        self.conv3 = nn.Conv1d(in_channels=28, out_channels=52, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm1d(52)
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
@@ -31,8 +31,8 @@ class Model(torch.nn.Module):
         # Fully connected layers
         self.fc1 = nn.Linear(self._to_linear, 128)
         self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 32)
-        self.fc4 = nn.Linear(32, 1)
+        # self.fc3 = nn.Linear(64, 32)
+        self.fc4 = nn.Linear(64, 1)
         
         self.dropout = nn.Dropout(0.2)
 
@@ -52,7 +52,7 @@ class Model(torch.nn.Module):
 
     def _get_to_linear_dim(self):
         with torch.no_grad():
-            x = torch.zeros(1, 8, 100)
+            x = torch.zeros(1, 7, 100)
             x = self.pool(F.relu(self.bn1(self.conv1(x))))
             x = self.pool(F.relu(self.bn2(self.conv2(x))))
             x = self.pool(F.relu(self.bn3(self.conv3(x))))
@@ -67,9 +67,9 @@ class Model(torch.nn.Module):
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = F.relu(self.fc2(x))
-        x = self.dropout(x)
-        x = self.fc3(x)
-        x = F.relu(x)
+        # x = self.dropout(x)
+        # x = self.fc3(x)
+        # x = F.relu(x)
         x = self.dropout(x)
         x = self.fc4(x)
         
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     
     # load the model 
     model = Model()
-    model.load_state_dict(torch.load(r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24_V5_Adam_150Epochs_lr_001.pth"))
+    model.load_state_dict(torch.load(r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24_V6_SGD_09Moment_50Epochs_lr_001_No_Charge_noShuffle.pth"))
     # Test model with predicting the fractions and making 10 plots with R^2
 
     # datasets
