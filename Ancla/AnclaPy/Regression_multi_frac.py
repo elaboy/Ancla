@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.functional import F
 
-batch_size = 64
+batch_size = 32
 
 class Model(torch.nn.Module):
     def __init__(self):
@@ -18,10 +18,10 @@ class Model(torch.nn.Module):
         self.bn1 = nn.BatchNorm1d(8 * 2)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
         
-        self.conv2 = nn.Conv1d(in_channels=16, out_channels=16*2, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm1d(8 * 4)
+        self.conv2 = nn.Conv1d(in_channels=16, out_channels=16, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm1d(8 * 2)
         
-        self.conv3 = nn.Conv1d(in_channels=16*2, out_channels=8, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv1d(in_channels=16, out_channels=8, kernel_size=3, padding=1)
         self.bn3 = nn.BatchNorm1d(8)
         
         # Calculate the size of the flattened features after the last pooling layer
@@ -31,9 +31,10 @@ class Model(torch.nn.Module):
         # Fully connected layers
         self.fc1 = nn.Linear(self._to_linear, 128)
         self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 1)
+        self.fc3 = nn.Linear(64, 32)
+        self.fc4 = nn.Linear(32, 1)
         
-        self.dropout = nn.Dropout(0.4)
+        self.dropout = nn.Dropout(0.2)
 
         self.double()
 
@@ -66,7 +67,11 @@ class Model(torch.nn.Module):
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = F.relu(self.fc2(x))
+        x = self.dropout(x)
         x = self.fc3(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        x = self.fc4(x)
         
         return x
     
@@ -100,14 +105,14 @@ if __name__ == "__main__":
     X = training_data["BaseSequence"].tolist()
     y = training_data["ScanRetentionTime"].tolist()
 
-    training_features = Featurizer.featurize_all_normalized(X)
+    training_features = Featurizer.featurize_all(X)
 
     y = Featurizer.normalize_targets(y)
 
     #divide training features into train and test
     from sklearn.model_selection import train_test_split
 
-    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.1, random_state=42)
 
     # Create data sets
     train_dataset = RTDataset(X_train, y_train)
@@ -124,7 +129,7 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
 
     #train the model 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     train_losses = []
     val_losses = []
@@ -132,7 +137,7 @@ if __name__ == "__main__":
     model.to(device)
 
     # training loop
-    for epoch in range(50):
+    for epoch in range(150):
         model.train()
         running_loss = 0.0
         for inputs, targets in train_loader:
@@ -157,10 +162,10 @@ if __name__ == "__main__":
         val_loss /= len(test_loader)
         val_losses.append(val_loss)
         
-        print(f"Epoch {epoch+1}/{50}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
+        print(f"Epoch {epoch+1}/{150}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
 
     # Save the model
-    torch.save(model.state_dict(), r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24.pth")
+    torch.save(model.state_dict(), r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24_V5_Adam_150Epochs_lr_001.pth")
     
     # Plot training history
     import matplotlib.pyplot as plt
