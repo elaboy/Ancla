@@ -18,11 +18,11 @@ class Model(torch.nn.Module):
         self.bn1 = nn.BatchNorm1d(14)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
         
-        self.conv2 = nn.Conv1d(in_channels=14, out_channels=28, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm1d(28)
+        self.conv2 = nn.Conv1d(in_channels=14, out_channels=14, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm1d(14)
         
-        self.conv3 = nn.Conv1d(in_channels=28, out_channels=52, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm1d(52)
+        self.conv3 = nn.Conv1d(in_channels=14, out_channels=7, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm1d(7)
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     
     # load the model 
     model = Model()
-    model.load_state_dict(torch.load(r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24_V6_SGD_09Moment_50Epochs_lr_001_No_Charge_noShuffle.pth"))
+    model.load_state_dict(torch.load(r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24_V8_SGD_07Moment_500Epochs_lr_001.pth"))
     # Test model with predicting the fractions and making 10 plots with R^2
 
     # datasets
