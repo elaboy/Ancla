@@ -10,40 +10,45 @@ from torch.functional import F
 
 batch_size = 1024
 
-class Model(torch.nn.Module):
+class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv1d(in_channels=7, out_channels=14, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm1d(14)
-        self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(16)
+        # self.pool1 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv2 = nn.Conv1d(in_channels=14, out_channels=14, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm1d(14)
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(32)
+        # self.pool2 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv3 = nn.Conv1d(in_channels=14, out_channels=7, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm1d(7)
+        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(64)
+        # self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+        
+        self.conv4 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1)
+        self.bn4 = nn.BatchNorm2d(128)
+        # self.pool4 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
         self._get_to_linear_dim()
-        
+
         # Fully connected layers
         self.fc1 = nn.Linear(self._to_linear, 128)
         self.fc2 = nn.Linear(128, 64)
-        # self.fc3 = nn.Linear(64, 32)
-        self.fc4 = nn.Linear(64, 1)
+        self.fc3 = nn.Linear(64, 1)
         
         self.dropout = nn.Dropout(0.2)
 
         self.double()
 
-        #initialize weights
+        # Initialize weights
         for m in self.modules():
-            if isinstance(m, nn.Conv1d):
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight)
                 nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm1d):
+            elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
@@ -52,26 +57,27 @@ class Model(torch.nn.Module):
 
     def _get_to_linear_dim(self):
         with torch.no_grad():
-            x = torch.zeros(1, 7, 100)
-            x = self.pool(F.relu(self.bn1(self.conv1(x))))
-            x = self.pool(F.relu(self.bn2(self.conv2(x))))
-            x = self.pool(F.relu(self.bn3(self.conv3(x))))
+            x = torch.zeros(1, 1, 7, 100)
+            x = F.relu(self.bn1(self.conv1(x)))
+            x = F.relu(self.bn2(self.conv2(x)))
+            x = F.relu(self.bn3(self.conv3(x)))
+            x = F.relu(self.bn4(self.conv4(x)))
             self._to_linear = x.view(1, -1).size(1)
     
-    def forward(self, x):
-        x = self.pool(F.relu(self.bn1(self.conv1(x))))
-        x = self.pool(F.relu(self.bn2(self.conv2(x))))
-        x = self.pool(F.relu(self.bn3(self.conv3(x))))
+    def forward(self, x: torch.Tensor):
+        # make sure the input tensor is of shape (batch_size, 1, 7, 100)
+        x = x.view(batch_size, 1, 7, 100)
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = F.relu(self.bn4(self.conv4(x)))
         
         x = x.view(-1, self._to_linear)  # Flatten the tensor
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = F.relu(self.fc2(x))
-        # x = self.dropout(x)
-        # x = self.fc3(x)
-        # x = F.relu(x)
         x = self.dropout(x)
-        x = self.fc4(x)
+        x = self.fc3(x)
         
         return x
     
@@ -130,7 +136,7 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
 
     #train the model 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.7)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
     # RecudeLRonPlateau
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
@@ -142,7 +148,7 @@ if __name__ == "__main__":
     model.to(device)
 
     # training loop
-    for epoch in range(500):
+    for epoch in range(25):
         model.train()
         running_loss = 0.0
         for inputs, targets in train_loader:
@@ -171,12 +177,12 @@ if __name__ == "__main__":
         val_loss /= len(test_loader)
         val_losses.append(val_loss)
         
-        print(f"Epoch {epoch+1}/{500}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
+        print(f"Epoch {epoch+1}/{25}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
         scheduler.step(val_loss)
 
     # Save the model
     torch.save(model.state_dict(),
-                r"D:\OtherPeptideResultsForTraining\RT_model_5_22_24_V8_SGD_07Moment_500Epochs_lr_001.pth")
+                r"D:\OtherPeptideResultsForTraining\RT_model_5_24_2024_V8.pth")
     
     # Plot training history
     import matplotlib.pyplot as plt
@@ -186,4 +192,4 @@ if __name__ == "__main__":
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
-    plt.savefig("training_history_5_22_24_V7.png")
+    plt.savefig("training_history_5_24_2024_V8.png")

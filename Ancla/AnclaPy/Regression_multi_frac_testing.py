@@ -18,16 +18,16 @@ class Model(torch.nn.Module):
         self.bn1 = nn.BatchNorm1d(14)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
         
-        self.conv2 = nn.Conv1d(in_channels=14, out_channels=14, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm1d(14)
+        self.conv2 = nn.Conv1d(in_channels=14, out_channels=14*2, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm1d(14*2)
         
-        self.conv3 = nn.Conv1d(in_channels=14, out_channels=7, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm1d(7)
+        self.conv3 = nn.Conv1d(in_channels=14*2, out_channels=(14*2)*2, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm1d((14*2)*2)
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
         self._get_to_linear_dim()
-        
+
         # Fully connected layers
         self.fc1 = nn.Linear(self._to_linear, 128)
         self.fc2 = nn.Linear(128, 64)
