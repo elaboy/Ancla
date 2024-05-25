@@ -8,27 +8,30 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.functional import F
 
-batch_size = 1024
+batch_size = 256
 
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, padding=1, bias = False)
         self.bn1 = nn.BatchNorm2d(16)
         # self.pool1 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
         self.bn2 = nn.BatchNorm2d(32)
         # self.pool2 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1, bias = False)
         self.bn3 = nn.BatchNorm2d(64)
         # self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv4 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1, bias = False)
         self.bn4 = nn.BatchNorm2d(128)
         # self.pool4 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+
+        self.conv5 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1, bias = False)
+        self.bn5 = nn.BatchNorm2d(256)
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
@@ -36,8 +39,8 @@ class Model(nn.Module):
 
         # Fully connected layers
         self.fc1 = nn.Linear(self._to_linear, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 1)
+        self.fc2 = nn.Linear(128, 1)
+        # self.fc3 = nn.Linear(64, 1)
         
         self.dropout = nn.Dropout(0.2)
 
@@ -47,7 +50,7 @@ class Model(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight)
-                nn.init.constant_(m.bias, 0)
+                # nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -62,22 +65,23 @@ class Model(nn.Module):
             x = F.relu(self.bn2(self.conv2(x)))
             x = F.relu(self.bn3(self.conv3(x)))
             x = F.relu(self.bn4(self.conv4(x)))
+            x = F.relu(self.bn5(self.conv5(x)))
             self._to_linear = x.view(1, -1).size(1)
     
     def forward(self, x: torch.Tensor):
         # make sure the input tensor is of shape (batch_size, 1, 7, 100)
-        x = x.view(batch_size, 1, 7, 100)
+        # x = x.view(batch_size, 1, 7, 100)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         x = F.relu(self.bn4(self.conv4(x)))
-        
+        x = F.relu(self.bn5(self.conv5(x)))
         x = x.view(-1, self._to_linear)  # Flatten the tensor
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
-        x = F.relu(self.fc2(x))
-        x = self.dropout(x)
-        x = self.fc3(x)
+        x = self.fc2(x)
+        # x = self.dropout(x)
+        # x = self.fc3(x)
         
         return x
     
@@ -90,7 +94,7 @@ class RTDataset(Dataset):
         return len(self.X)
 
     def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
+        return torch.tensor(self.X[idx]).unsqueeze_(0), self.y[idx]
     
 if __name__ == "__main__":
 
@@ -118,7 +122,7 @@ if __name__ == "__main__":
     #divide training features into train and test
     from sklearn.model_selection import train_test_split
 
-    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.8,
+    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.7,
                                                          shuffle = True, random_state=42)
 
     # Create data sets
@@ -136,7 +140,8 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
 
     #train the model 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.9,
+                                weight_decay=1e-5)
 
     # RecudeLRonPlateau
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',

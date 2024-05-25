@@ -202,10 +202,10 @@ class Visualize(object):
         #second plot
         axs[1].scatter(data['Database'], data['Database'],
                        color='red', label='Database vs Database', s=0.3)
-        axs[1].scatter(data['Experimental'], data['Database'],
-                       color='blue', label='Experimental vs Database', s=0.3)
+        # axs[1].scatter(data['Experimental'], data['Database'],
+        #                color='blue', label='Experimental vs Database', s=0.2)
         axs[1].scatter(data['PostTransformation'], data['Database'],
-                       color='green', label='PostTransformation vs Database', s=0.3)
+                       color='orange', label='PostTransformation vs Database', s=0.3)
         axs[1].set_xlabel('PostTransformation')
         axs[1].set_ylabel('Database')
         axs[1].legend()
@@ -237,7 +237,7 @@ class Visualize(object):
         axs[0].legend()
         
         axs[1].hist(data['Database_z'], bins=100, color='red', alpha=0.5, label='Database')
-        axs[1].hist(data['PostTransformation_z'], bins=100, color='green', alpha=0.5, label='PostTransformation')
+        axs[1].hist(data['PostTransformation_z'], bins=100, color='orange', alpha=0.5, label='PostTransformation')
         axs[1].set_title('After transformation')
         axs[1].set_xlabel('Z-score')
         axs[1].set_ylabel('Frequency')
@@ -265,15 +265,15 @@ class Visualize(object):
         fig, axs = plt.subplots(2, 2, figsize=(15, 5))
         
         axs[0, 0].scatter(data['Database'], data['Database'],
-                          color='red', label='Database vs Database', s=0.3)
+                          color='red', label='Database vs Database', s=0.5)
         axs[0, 0].scatter(data['Experimental'], data['Database'],
-                          color='blue', label='Experimental vs Database', s=0.3)
+                          color='blue', label='Experimental vs Database', s=0.5)
         axs[0, 0].set_xlabel('Experimental')
         axs[0, 0].set_ylabel('Database')
         axs[0, 0].legend()
         
         axs[0, 1].scatter(range(len(data["Residuals_exp"])), data['Residuals_exp'], 
-                          color='blue', label='Residuals Experimental', s=0.3)
+                          color='blue', label='Residuals Experimental', s=0.5)
         #horizontal black line at 0
         axs[0, 1].axhline(0, color='black', lw=1)
         axs[0, 1].set_xlabel('Residuals Experimental')
@@ -281,15 +281,15 @@ class Visualize(object):
         axs[0, 1].legend()
         
         axs[1, 0].scatter(data['Database'], data['Database'],
-                          color='red', label='Database vs Database', s=0.3)
+                          color='red', label='Database vs Database', s=0.5)
         axs[1, 0].scatter(data['PostTransformation'], data['Database'],
-                          color='green', label='PostTransformation vs Database', s=0.3)
+                          color='green', label='PostTransformation vs Database', s=0.5)
         axs[1, 0].set_xlabel('PostTransformation')
         axs[1, 0].set_ylabel('Database')
         axs[1, 0].legend()
         
         axs[1, 1].scatter(range(len(data["Residuals_trans"])), data["Residuals_trans"],
-                          color='green', label='Residuals PostTransformation', s=0.3)
+                          color='green', label='Residuals PostTransformation', s=0.5)
         #horizontal black line at 0
         axs[1, 1].axhline(0, color='black', lw=1)
         axs[1, 1].set_xlabel('Residuals PostTransformation')
@@ -318,8 +318,51 @@ class Visualize(object):
     def visualize_all(data: pd.DataFrame) -> None:
         Visualize.scatter_plots(data)
         Visualize.z_scores_hist(data)
-        Visualize.residuals_scatter(data)
+        # Visualize.residuals_scatter(data)
         # Visualize.qq_plot(data)
+        plt.show()
+
+    @staticmethod
+    def visualize_scatter_distributions(data: pd.DataFrame) -> None:
+        from sklearn.metrics import r2_score
+        # 4 by 4 grid. top two scatter, bottom two histograms
+        fig, axs = plt.subplots(2, 2, figsize=(24, 16))
+
+        #plot the scatter plots
+        axs[0, 0].scatter(data['Database'], data['Database'],
+                            color='red', label='Database vs Database', s=0.5)
+        axs[0, 0].scatter(data['Experimental'], data['Database'],
+                            color='blue', label='Experimental vs Database', s=0.5)
+        axs[0, 0].set_xlabel('Experimental')
+        axs[0, 0].set_ylabel('Database')
+        #r2 scores
+        r2_exp = r2_score(data['Database'], data['Experimental'])
+        axs[0, 0].text(0.5, 0.5, f'R2: {r2_exp:.2f}', transform=axs[0, 0].transAxes)
+        axs[0, 0].legend()
+
+        axs[0, 1].scatter(data['Database'], data['Database'],
+                            color='red', label='Database vs Database', s=0.5)
+        axs[0, 1].scatter(data['PostTransformation'], data['Database'],
+                            color='blue', label='PostTransformation vs Database', s=0.5)
+        axs[0, 1].set_xlabel('PostTransformation')
+        axs[0, 1].set_ylabel('Database')
+        axs[0, 1].legend()
+        
+        # histograms
+        axs[1, 0].hist(data['Database'], bins=100, color='red', alpha=0.5, label='Database')
+        axs[1, 0].hist(data['Experimental'], bins=100, color='blue', alpha=0.5, label='Experimental')
+        axs[1, 0].set_title('Database and Experimental')
+        axs[1, 0].set_xlabel('RT')
+        axs[1, 0].set_ylabel('Frequency')
+        axs[1, 0].legend()
+
+        axs[1, 1].hist(data['Database'], bins=100, color='red', alpha=0.5, label='Database')
+        axs[1, 1].hist(data['PostTransformation'], bins=100, color = "blue", alpha=0.5, label='PostTransformation')
+        axs[1, 1].set_title('Database and PostTransformation')
+        axs[1, 1].set_xlabel('RT')
+        axs[1, 1].set_ylabel('Frequency')
+        axs[1, 1].legend()
+
         plt.show()
 
     @staticmethod
