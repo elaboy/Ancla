@@ -186,8 +186,9 @@ if __name__ == "__main__":
             self.prev_button_ax = self.fig.add_axes([0.7, 0.01, 0.1, 0.05])
             self.prev_button = Button(self.prev_button_ax, 'Previous')
             self.prev_button.on_clicked(self.prev_plot)
-            
+
             self.plot_fraction(self.current_index)
+            plt.tight_layout()
             plt.show()
 
         def plot_fraction(self, index):
@@ -211,12 +212,14 @@ if __name__ == "__main__":
             r2 = r2_score(actual_RT, fraction.y)
             self.r2_scores.append(r2)
             
-            self.axs[0, 0].scatter(actual_RT, actual_RT, color="red", s=0.4, label="Actual")
-            self.axs[0, 0].scatter(fraction.y, actual_RT, color="blue", s=0.4, label="Predicted")
+            self.axs[0, 0].scatter(actual_RT, actual_RT, color="red", s=0.4, label="database")
+            self.axs[0, 0].scatter(fraction.y, actual_RT, color="blue", s=0.4, label="experimental")
             self.axs[0, 0].set_ylabel("Actual RT")
-            self.axs[0, 0].set_xlabel("Predicted RT")
+            self.axs[0, 0].set_xlabel("Experimental RT")
             self.axs[0, 0].set_title(f"Fraction {index + 1}: Experimental RT vs Database RT")
             self.axs[0, 0].text(0.1, 0.9, f"R^2: {r2:.3f}", ha="center", va="center", transform=self.axs[0, 0].transAxes)
+            #legend for this plot
+            self.axs[0, 0].legend()
 
             # histogram 
             self.axs[1, 0].hist(np.abs(actual_RT - np.array(fraction.y)), bins=50)
@@ -228,12 +231,14 @@ if __name__ == "__main__":
 
             #plot the lowess
             r2 = r2_score(actual_RT, predicted_RT.squeeze())
-            self.axs[0, 1].scatter(actual_RT, actual_RT, color='red', label='actual', s=0.4)
+            self.axs[0, 1].scatter(actual_RT, actual_RT, color='red', label='database', s=0.4)
             self.axs[0, 1].scatter(predicted_RT.squeeze(), actual_RT, color='green', label='predictions', s=0.4)
             self.axs[0, 1].text(0.4, 0.9, f"R^2: {r2:.3f}", ha="center", va="center", transform=self.axs[0, 1].transAxes)
             self.axs[0, 1].set_ylabel("Actual RT")
             self.axs[0, 1].set_xlabel("Predicted RT")
             self.axs[0, 1].set_title(f"Fraction {index + 1}: Predicted RT vs Database RT")
+            #legend for this plot
+            self.axs[0, 1].legend()
 
             #histogram
             self.axs[1, 1].hist(np.abs(actual_RT - predicted_RT.squeeze()), bins=50)
@@ -243,23 +248,25 @@ if __name__ == "__main__":
             
             from statsmodels.nonparametric.smoothers_lowess import lowess
             # make this a numpy vector 
-            model = lowess(actual_RT, predicted_RT.squeeze(), frac=1./3, it = 4)
+            model = lowess(actual_RT, predicted_RT.squeeze(), frac=1./3, it = 10)
             f = np.interp(predicted_RT.squeeze(), model[:, 0], model[:, 1])
 
             r2 = r2_score(actual_RT, f)
-            self.axs[0, 2].scatter(actual_RT, actual_RT, color='red', label='actual', s=0.4)
+            self.axs[0, 2].scatter(actual_RT, actual_RT, color='red', label='database', s=0.4)
             self.axs[0, 2].scatter(f, actual_RT, color='green', s=0.4, label='calibrated predictions')
             self.axs[0, 2].text(0.1, 0.9, f"R^2: {r2:.3f}", ha="center", va="center", transform=self.axs[0, 2].transAxes)
             self.axs[0, 2].set_ylabel("Actual RT")
-            self.axs[0, 2].set_xlabel("Predicted RT")
+            self.axs[0, 2].set_xlabel("Calibrated Predicted RT")
             self.axs[0, 2].set_title(f"Fraction {index + 1}: Calibrated Predicted RT vs Database RT")
+            #legend for this plot
+            self.axs[0, 2].legend()
 
             #histogram
             self.axs[1, 2].hist(np.abs(actual_RT - f), bins=50)
             self.axs[1, 2].set_xlabel("Absolute Error")
             self.axs[1, 2].set_ylabel("Frequency")
 
-            
+            plt.savefig(f"fraction_{index + 1}.png")
             self.fig.canvas.draw_idle()
 
         def next_plot(self, event):
