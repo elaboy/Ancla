@@ -8,30 +8,30 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torch.functional import F
 
-batch_size = 256
+batch_size = 32
 
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, padding=1, bias = False)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3, padding=1, bias = False)
+        self.bn1 = nn.BatchNorm2d(4)
         # self.pool1 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
-        self.bn2 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=3, padding=1, bias = False)
+        self.bn2 = nn.BatchNorm2d(16)
         # self.pool2 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1, bias = False)
-        self.bn3 = nn.BatchNorm2d(64)
+        self.conv3 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
+        self.bn3 = nn.BatchNorm2d(32)
         # self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv4 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1, bias = False)
-        self.bn4 = nn.BatchNorm2d(128)
+        self.conv4 = nn.Conv2d(in_channels=32, out_channels=16, kernel_size=3, padding=1, bias = False)
+        self.bn4 = nn.BatchNorm2d(16)
         # self.pool4 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
 
-        self.conv5 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1, bias = False)
-        self.bn5 = nn.BatchNorm2d(256)
+        self.conv5 = nn.Conv2d(in_channels=16, out_channels=4, kernel_size=3, padding=1, bias = False)
+        self.bn5 = nn.BatchNorm2d(4)
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
@@ -39,10 +39,11 @@ class Model(nn.Module):
 
         # Fully connected layers
         self.fc1 = nn.Linear(self._to_linear, 128)
-        self.fc2 = nn.Linear(128, 1)
-        # self.fc3 = nn.Linear(64, 1)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 32)
+        self.fc4 = nn.Linear(32, 1)
         
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.7)
 
         self.double()
 
@@ -79,9 +80,11 @@ class Model(nn.Module):
         x = x.view(-1, self._to_linear)  # Flatten the tensor
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
-        x = self.fc2(x)
-        # x = self.dropout(x)
-        # x = self.fc3(x)
+        x = F.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc3(x))
+        x = self.dropout(x)
+        x = self.fc4(x)
         
         return x
     
@@ -110,7 +113,7 @@ if __name__ == "__main__":
     frac9 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac9-calib-averaged.csv")
     frac10 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac10-calib-averaged.csv")
 
-    training_data = pd.read_csv(r"D:\OtherPeptideResultsForTraining\fractionOverlapJurkatFromMannTryptic.csv")
+    training_data = pd.read_csv(r"D:\OtherPeptideResultsForTraining\NO_JURKAT_fractionOverlapJurkatFromMannTryptic.csv")
 
     X = training_data["BaseSequence"].tolist()
     y = training_data["ScanRetentionTime"].tolist()
@@ -137,6 +140,9 @@ if __name__ == "__main__":
 
     model = Model()
 
+    #print the model architecture 
+    print(model)
+
     criterion = torch.nn.MSELoss()
 
     #train the model 
@@ -145,7 +151,7 @@ if __name__ == "__main__":
 
     # RecudeLRonPlateau
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
-                                                        factor=0.1, patience=5)
+                                                        factor=0.1, patience=3)
 
     train_losses = []
     val_losses = []
@@ -187,7 +193,7 @@ if __name__ == "__main__":
 
     # Save the model
     torch.save(model.state_dict(),
-                r"D:\OtherPeptideResultsForTraining\RT_model_5_24_2024_V8.pth")
+                r"D:\OtherPeptideResultsForTraining\RT_model_5_24_2024_V9_NO_JURKAT_TRAIN.pth")
     
     # Plot training history
     import matplotlib.pyplot as plt
@@ -197,4 +203,4 @@ if __name__ == "__main__":
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
-    plt.savefig("training_history_5_24_2024_V8.png")
+    plt.savefig("training_history_5_24_2024_V9.png")
