@@ -22,11 +22,11 @@ class Model(nn.Module):
         self.bn2 = nn.BatchNorm2d(16)
         # self.pool2 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv3 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
-        self.bn3 = nn.BatchNorm2d(32)
+        self.conv3 = nn.Conv2d(in_channels=16, out_channels=64, kernel_size=3, padding=1, bias = False)
+        self.bn3 = nn.BatchNorm2d(64)
         # self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv4 = nn.Conv2d(in_channels=32, out_channels=16, kernel_size=3, padding=1, bias = False)
+        self.conv4 = nn.Conv2d(in_channels=64, out_channels=16, kernel_size=3, padding=1, bias = False)
         self.bn4 = nn.BatchNorm2d(16)
         # self.pool4 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
 
@@ -39,11 +39,9 @@ class Model(nn.Module):
 
         # Fully connected layers
         self.fc1 = nn.Linear(self._to_linear, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 32)
-        self.fc4 = nn.Linear(32, 1)
+        self.fc2 = nn.Linear(128, 1)
         
-        self.dropout = nn.Dropout(0.7)
+        self.dropout = nn.Dropout(0.5)
 
         self.double()
 
@@ -80,11 +78,7 @@ class Model(nn.Module):
         x = x.view(-1, self._to_linear)  # Flatten the tensor
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
-        x = F.relu(self.fc2(x))
-        x = self.dropout(x)
-        x = F.relu(self.fc3(x))
-        x = self.dropout(x)
-        x = self.fc4(x)
+        x = self.fc2(x)
         
         return x
     
@@ -102,16 +96,16 @@ class RTDataset(Dataset):
 if __name__ == "__main__":
 
     # read all 10 fractions 
-    frac1 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac1-calib-averaged.csv")
-    frac2 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac2-calib-averaged.csv")
-    frac3 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac3-calib-averaged.csv")
-    frac4 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac4-calib-averaged.csv")
-    frac5 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac5-calib-averaged.csv")
-    frac6 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac6-calib-averaged.csv")
-    frac7 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac7-calib-averaged.csv")
-    frac8 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac8-calib-averaged.csv")
-    frac9 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac9-calib-averaged.csv")
-    frac10 = pd.read_csv(r"D:\OtherPeptideResultsForTraining\transformedData_12-18-17_frac10-calib-averaged.csv")
+    frac1 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac1-calib-averaged.csv")
+    frac2 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac2-calib-averaged.csv")
+    frac3 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac3-calib-averaged.csv")
+    frac4 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac4-calib-averaged.csv")
+    frac5 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac5-calib-averaged.csv")
+    frac6 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac6-calib-averaged.csv")
+    frac7 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac7-calib-averaged.csv")
+    frac8 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac8-calib-averaged.csv")
+    frac9 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac9-calib-averaged.csv")
+    frac10 = pd.read_csv(r"D:\no_jurkat_transformedData_12-18-17_frac10-calib-averaged.csv")
 
     training_data = pd.read_csv(r"D:\OtherPeptideResultsForTraining\NO_JURKAT_fractionOverlapJurkatFromMannTryptic.csv")
 
@@ -125,7 +119,7 @@ if __name__ == "__main__":
     #divide training features into train and test
     from sklearn.model_selection import train_test_split
 
-    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.7,
+    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.1,
                                                          shuffle = True, random_state=42)
 
     # Create data sets
@@ -146,20 +140,23 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
 
     #train the model 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.9,
-                                weight_decay=1e-5)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum = 0.9, weight_decay=1e-7)
 
     # RecudeLRonPlateau
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
-                                                        factor=0.1, patience=3)
+                                                        factor=0.1, patience=10)
 
     train_losses = []
     val_losses = []
 
     model.to(device)
 
+    #print both training and testing dataloader size 
+    print(len(train_loader), len(test_loader))
+
+
     # training loop
-    for epoch in range(25):
+    for epoch in range(300):
         model.train()
         running_loss = 0.0
         for inputs, targets in train_loader:
@@ -188,7 +185,7 @@ if __name__ == "__main__":
         val_loss /= len(test_loader)
         val_losses.append(val_loss)
         
-        print(f"Epoch {epoch+1}/{25}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
+        print(f"Epoch {epoch+1}/{300}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
         scheduler.step(val_loss)
 
     # Save the model
