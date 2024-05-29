@@ -14,24 +14,24 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3, padding=1, bias = False)
-        self.bn1 = nn.BatchNorm2d(4)
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=2, kernel_size=3, padding=1, bias = False)
+        self.bn1 = nn.BatchNorm2d(2)
         # self.pool1 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv2 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=3, padding=1, bias = False)
-        self.bn2 = nn.BatchNorm2d(16)
+        self.conv2 = nn.Conv2d(in_channels=2, out_channels=4, kernel_size=3, padding=1, bias = False)
+        self.bn2 = nn.BatchNorm2d(4)
         # self.pool2 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv3 = nn.Conv2d(in_channels=16, out_channels=64, kernel_size=3, padding=1, bias = False)
-        self.bn3 = nn.BatchNorm2d(64)
+        self.conv3 = nn.Conv2d(in_channels=4, out_channels=8, kernel_size=3, padding=1, bias = False)
+        self.bn3 = nn.BatchNorm2d(8)
         # self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv4 = nn.Conv2d(in_channels=64, out_channels=16, kernel_size=3, padding=1, bias = False)
+        self.conv4 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, padding=1, bias = False)
         self.bn4 = nn.BatchNorm2d(16)
         # self.pool4 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
 
-        self.conv5 = nn.Conv2d(in_channels=16, out_channels=4, kernel_size=3, padding=1, bias = False)
-        self.bn5 = nn.BatchNorm2d(4)
+        self.conv5 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
+        self.bn5 = nn.BatchNorm2d(32)
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
@@ -39,7 +39,13 @@ class Model(nn.Module):
 
         # Fully connected layers
         self.fc1 = nn.Linear(self._to_linear, 128)
-        self.fc2 = nn.Linear(128, 1)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 32)
+        self.fc4 = nn.Linear(32, 16)
+        self.fc5 = nn.Linear(16, 8)
+        self.fc6 = nn.Linear(8, 4)
+        self.fc7 = nn.Linear(4, 2)
+        self.fc8 = nn.Linear(2, 1)
         
         self.dropout = nn.Dropout(0.5)
 
@@ -78,8 +84,20 @@ class Model(nn.Module):
         x = x.view(-1, self._to_linear)  # Flatten the tensor
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
-        x = self.fc2(x)
-        
+        x = F.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc3(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc4(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc5(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc6(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc7(x))
+        x = self.dropout(x)
+        x = self.fc8(x)
+
         return x
     
 class RTDataset(Dataset):
@@ -114,12 +132,12 @@ if __name__ == "__main__":
 
     training_features = Featurizer.featurize_all(X)
 
-    y = Featurizer.normalize_targets(y)
+    # y = Featurizer.normalize_targets(y)
 
     #divide training features into train and test
     from sklearn.model_selection import train_test_split
 
-    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.1,
+    X_train, X_test, y_train, y_test = train_test_split(training_features, y, test_size=0.2,
                                                          shuffle = True, random_state=42)
 
     # Create data sets
@@ -140,7 +158,7 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
 
     #train the model 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum = 0.9, weight_decay=1e-7)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum = 0.9, weight_decay=1e-5)
 
     # RecudeLRonPlateau
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
@@ -156,13 +174,13 @@ if __name__ == "__main__":
 
 
     # training loop
-    for epoch in range(300):
+    for epoch in range(30):
         model.train()
         running_loss = 0.0
         for inputs, targets in train_loader:
             optimizer.zero_grad()
             outputs = model(inputs.to(device))
-            loss = criterion(outputs, targets.to(device))
+            loss = criterion(outputs, targets.reshape(-1, 1).to(device))
             loss.backward()
 
             #gradient clipping
@@ -179,13 +197,13 @@ if __name__ == "__main__":
         with torch.no_grad():
             for inputs, targets in test_loader:
                 outputs = model(inputs.to(device))
-                loss = criterion(outputs, targets.to(device))
+                loss = criterion(outputs, targets.reshape(-1, 1).to(device))
                 val_loss += loss.item()
         
         val_loss /= len(test_loader)
         val_losses.append(val_loss)
         
-        print(f"Epoch {epoch+1}/{300}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
+        print(f"Epoch {epoch+1}/{30}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
         scheduler.step(val_loss)
 
     # Save the model
