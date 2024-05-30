@@ -14,24 +14,24 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=2, kernel_size=3, padding=1, bias = False)
-        self.bn1 = nn.BatchNorm2d(2)
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3, padding=1, bias = False)
+        self.bn1 = nn.BatchNorm2d(4)
         # self.pool1 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv2 = nn.Conv2d(in_channels=2, out_channels=4, kernel_size=3, padding=1, bias = False)
-        self.bn2 = nn.BatchNorm2d(4)
+        self.conv2 = nn.Conv2d(in_channels=4, out_channels=8, kernel_size=3, padding=1, bias = False)
+        self.bn2 = nn.BatchNorm2d(8)
         # self.pool2 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv3 = nn.Conv2d(in_channels=4, out_channels=8, kernel_size=3, padding=1, bias = False)
-        self.bn3 = nn.BatchNorm2d(8)
+        self.conv3 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, padding=1, bias = False)
+        self.bn3 = nn.BatchNorm2d(16)
         # self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv4 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, padding=1, bias = False)
-        self.bn4 = nn.BatchNorm2d(16)
+        self.conv4 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
+        self.bn4 = nn.BatchNorm2d(32)
         # self.pool4 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
 
-        self.conv5 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
-        self.bn5 = nn.BatchNorm2d(32)
+        self.conv5 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1, bias = False)
+        self.bn5 = nn.BatchNorm2d(64)
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
@@ -132,7 +132,7 @@ if __name__ == "__main__":
 
     training_features = Featurizer.featurize_all(X)
 
-    # y = Featurizer.normalize_targets(y)
+    y = Featurizer.normalize_targets(y)
 
     #divide training features into train and test
     from sklearn.model_selection import train_test_split
@@ -145,8 +145,8 @@ if __name__ == "__main__":
     test_dataset = RTDataset(X_test, y_test)
 
     # Create data loaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     #print the model architecture 
     print(model)
 
-    criterion = torch.nn.MSELoss()
+    criterion = torch.nn.MSELoss() #maybe huberloss is better for this task
 
     #train the model 
     optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum = 0.9, weight_decay=1e-5)
