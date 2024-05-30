@@ -6,6 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import peptides
 import torch
+from torch import nn
+from torch.nn import functional as F
+from torch.utils.data import Dataset
 
 aa_dict = {
     "PAD" : 0,
@@ -426,3 +429,111 @@ class TransformationFunctions(object):
         data['PostTransformation'] = linear_model.predict(data[x].values.reshape(-1, 1))
     
         return data
+
+class BuModel(nn.Module):
+    def __init__(self):
+        super(BuModel, self).__init__()
+        # Convolutional layers
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3, padding=1, bias = False)
+        self.bn1 = nn.BatchNorm2d(4)
+        # self.pool1 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+        
+        self.conv2 = nn.Conv2d(in_channels=4, out_channels=8, kernel_size=3, padding=1, bias = False)
+        self.bn2 = nn.BatchNorm2d(8)
+        # self.pool2 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+        
+        self.conv3 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, padding=1, bias = False)
+        self.bn3 = nn.BatchNorm2d(16)
+        # self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+        
+        self.conv4 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
+        self.bn4 = nn.BatchNorm2d(32)
+        # self.pool4 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+
+        self.conv5 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1, bias = False)
+        self.bn5 = nn.BatchNorm2d(64)
+        
+        # Calculate the size of the flattened features after the last pooling layer
+        self._to_linear = None
+        self._get_to_linear_dim()
+
+        # Fully connected layers
+        self.fc1 = nn.Linear(self._to_linear, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 32)
+        self.fc4 = nn.Linear(32, 16)
+        self.fc5 = nn.Linear(16, 8)
+        self.fc6 = nn.Linear(8, 4)
+        self.fc7 = nn.Linear(4, 2)
+        self.fc8 = nn.Linear(2, 1)
+        
+        self.dropout = nn.Dropout(0.5)
+
+        self.double()
+
+        # Initialize weights
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                # nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                nn.init.constant_(m.bias, 0)
+
+    def _get_to_linear_dim(self):
+        with torch.no_grad():
+            x = torch.zeros(1, 1, 7, 100)
+            x = F.relu(self.bn1(self.conv1(x)))
+            x = F.relu(self.bn2(self.conv2(x)))
+            x = F.relu(self.bn3(self.conv3(x)))
+            x = F.relu(self.bn4(self.conv4(x)))
+            x = F.relu(self.bn5(self.conv5(x)))
+            self._to_linear = x.view(1, -1).size(1)
+    
+    def forward(self, x: torch.Tensor):
+        # make sure the input tensor is of shape (batch_size, 1, 7, 100)
+        # x = x.view(batch_size, 1, 7, 100)
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = F.relu(self.bn4(self.conv4(x)))
+        x = F.relu(self.bn5(self.conv5(x)))
+        x = x.view(-1, self._to_linear)  # Flatten the tensor
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc3(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc4(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc5(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc6(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc7(x))
+        x = self.dropout(x)
+        x = self.fc8(x)
+
+        return x
+    
+class RTDataset(Dataset):
+
+    def __init__(self, X, y):
+        self.X = X
+        self.y = y
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+
+        return torch.tensor(self.X[idx]).unsqueeze_(0), self.y[idx]
+    
+class ModelToolKit(object):
+
+    @staticmethod
+    def get_loss_landscape(model: nn.Module, criterion: nn.Module, data: RTDataset, device: torch.device) -> NDArray:
