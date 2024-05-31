@@ -44,10 +44,12 @@ class Featurizer(object):
         peptides_as_char_list = [list(data)]
 
         # add PAD until the length is 100
-        padded_peptides_char_list = [peptide + ["PAD"] * (100 - len(peptide)) for peptide in peptides_as_char_list]
+        padded_peptides_char_list = [peptide + ["PAD"] *
+                                      (100 - len(peptide)) for peptide in peptides_as_char_list]
 
         # conver data into a list of peptides where each character is replaces by its corresponding value in the aa_dict
-        peptides_as_dict_index = [[aa_dict[aa] for aa in peptide] for peptide in padded_peptides_char_list]
+        peptides_as_dict_index = [[aa_dict[aa] for aa in peptide] 
+                                  for peptide in padded_peptides_char_list]
         
         # compute data features per residue 
         hydrophobicity = [peptides.Peptide(residue).hydrophobic_moment() for residue in data]
@@ -535,5 +537,36 @@ class RTDataset(Dataset):
     
 class ModelToolKit(object):
 
+    # Function to compute loss
     @staticmethod
-    def get_loss_landscape(model: nn.Module, criterion: nn.Module, data: RTDataset, device: torch.device) -> NDArray:
+    def get_loss(model, criterion, X, y):
+        model.eval()
+        with torch.no_grad():
+            output = model(X)
+            print(f"Output shape: {output.shape},
+                Target shape: {y.shape}")  # Debugging line
+            loss = criterion(output, y)
+        model.train()
+        return loss.item()
+
+    # Function to compute the loss landscape
+    @staticmethod
+    def loss_landscape(model, criterion, X, y, direction1,
+                        direction2, num_points=50, range_=5.0):
+        original_params = [p.clone() for p in model.parameters()]
+        losses = np.zeros((num_points, num_points))
+        x_grid = np.linspace(-range_, range_, num_points)
+        y_grid = np.linspace(-range_, range_, num_points)
+
+        for i, xi in enumerate(x_grid):
+            for j, yj in enumerate(y_grid):
+                for k, p in enumerate(model.parameters()):
+                    p.data = original_params[k] + xi * \
+                            direction1[k] + yj * direction2[k]
+                losses[i, j] = ModelToolKit.get_loss(model, criterion, X, y)
+
+        # Restore original parameters
+        for k, p in enumerate(model.parameters()):
+            p.data = original_params[k]
+        
+        return x_grid, y_grid, losses
