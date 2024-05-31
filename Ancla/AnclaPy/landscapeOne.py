@@ -9,8 +9,8 @@ from Ancla import Featurizer, RTDataset, BuModel, ModelToolKit
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
-batch_size = 32
-trained = True
+batch_size = 128
+trained = False
     
 if __name__ == "__main__":
 
@@ -61,76 +61,71 @@ if __name__ == "__main__":
     train_losses = []
     val_losses = []
 
+    epochs = 5
+
+    landscape_subsample = train_dataset.__getitem__(range(len(train_dataset)//10))
+
     if trained == False:
-        for epoch in range(50):
-            print(f"Epoch {epoch+1}/{50}")
-            model.train()
-            running_loss = 0.0
-            for inputs, targets in train_loader:
-                optimizer.zero_grad()
-                outputs = model(inputs.to(device))
-                loss = criterion(outputs, targets.reshape(-1, 1).to(device))
-                loss.backward()
-
-                #gradient clipping
-                # torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
-
-                optimizer.step()
-                running_loss += loss.item()
-                # break
-            
-            train_loss = running_loss / len(train_loader)
-            train_losses.append(train_loss)
-            
-            model.eval()
-            val_loss = 0.0
-            with torch.no_grad():
-                for inputs, targets in test_loader:
-                    outputs = model(inputs.to(device))
-                    loss = criterion(outputs, targets.reshape(-1, 1).to(device))
-                    val_loss += loss.item()
-                    # break
-
-            val_loss /= len(test_loader)
-            val_losses.append(val_loss)
-            
-            print(f"Epoch {epoch+1}/{50}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
-        
-        # save model
-        model.eval()
-        torch.save(model.state_dict(), "model_LandscapeTest1.pt")
         model.train()
+        running_loss = 0.0
+        
+        direction1 = [torch.randn_like(p) for p in model.parameters()]
+        direction2 = [torch.randn_like(p) for p in model.parameters()]
+        
+        ModelToolKit.landscape_live(model = model, optimizer = optimizer, criterion = criterion,
+                                            epochs = epochs, data_loader = train_loader, landscape_dataset = landscape_subsample,
+                                            direction1 = direction1, direction2 = direction2,
+                                            num_points = 5, range_ = 5.0, device = device)
+        
+        #     model.eval()
+        #     val_loss = 0.0
+        #     with torch.no_grad():
+        #         for inputs, targets in test_loader:
+        #             outputs = model(inputs.to(device))
+        #             loss = criterion(outputs, targets.reshape(-1).to(device))
+        #             val_loss += loss.item()
+        #             # break
+
+        #     val_loss /= len(test_loader)
+        #     val_losses.append(val_loss)
+            
+        #     # print(f"Epoch {epoch+1}/{epochs}, Train Loss: {train_loss}, Validation Loss: {val_loss}")
+        
+        # # save model
+        # model.eval()
+        # torch.save(model.state_dict(), "model_LandscapeTest2.pt")
+        # model.train()
 
     else: 
         model.load_state_dict(torch.load(r"C:\Users\elabo\Documents\GitHub\Ancla\Ancla\model_LandscapeTest1.pt"))
 
-direction1 = [torch.randn_like(p) for p in model.parameters()]
-direction2 = [torch.randn_like(p) for p in model.parameters()]
+# direction1 = [torch.randn_like(p) for p in model.parameters()]
+# direction2 = [torch.randn_like(p) for p in model.parameters()]
 
 
-# Compute loss landscape
-x_grid, y_grid, losses = ModelToolKit.loss_landscape(model, criterion,
-                                                      test_dataset.__getitem__(range(0, 100))[0].reshape(len(range(0, 100)),
-                                                                                                                    1, 7, 100),
-                                                      test_dataset.__getitem__(range(0, 100))[1],
-                                                      direction1, direction2, num_points=10000, range_=1.0, device = device)
+# # Compute loss landscape
+# x_grid, y_grid, losses = ModelToolKit.loss_landscape(model, criterion,
+#                                                       test_dataset.__getitem__(range(len(test_dataset)//4))[0].reshape(len(range(len(test_dataset)//4)),
+#                                                                                                                     1, 7, 100),
+#                                                       test_dataset.__getitem__(range(len(test_dataset)//4))[1],
+#                                                       direction1, direction2, num_points=5, range_=30.0, device = device)
 
-# Plot the loss landscape
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-X_, Y_ = np.meshgrid(x_grid, y_grid)
-ax.plot_surface(X_, Y_, losses, cmap='viridis')
+# # Plot the loss landscape
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# X_, Y_ = np.meshgrid(x_grid, y_grid)
+# ax.plot_surface(X_, Y_, losses, cmap='viridis')
 
-ax.set_xlabel('Direction 1')
-ax.set_ylabel('Direction 2')
-ax.set_zlabel('Loss')
-plt.title('Loss Landscape')
-plt.show()
+# ax.set_xlabel('Direction 1')
+# ax.set_ylabel('Direction 2')
+# ax.set_zlabel('Loss')
+# plt.title('Loss Landscape')
+# plt.show()
 
-# Contour plot
-plt.contour(X_, Y_, losses, levels=50, cmap='viridis')
-plt.xlabel('Direction 1')
-plt.ylabel('Direction 2')
-plt.title('Contour Plot of Loss Landscape')
-plt.colorbar()
-plt.show()
+# # Contour plot
+# plt.contour(X_, Y_, losses, levels=50, cmap='viridis')
+# plt.xlabel('Direction 1')
+# plt.ylabel('Direction 2')
+# plt.title('Contour Plot of Loss Landscape')
+# plt.colorbar()
+# plt.show()

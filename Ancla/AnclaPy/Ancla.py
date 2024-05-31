@@ -8,7 +8,8 @@ import peptides
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch.utils.data import Dataset
+import torch.utils
+from torch.utils.data import Dataset, DataLoader
 
 aa_dict = {
     "PAD" : 0,
@@ -542,10 +543,12 @@ class ModelToolKit(object):
     def get_loss(model, criterion, X, y, device = "cpu"):
         model.eval()
         with torch.no_grad():
+            # make X reshape to (batch_size, 1, 7, 100)
+            X = X.reshape(-1, 1, 7, 100)
             output = model(X.to(device))
             # print(f"Output shape: {output.shape},\
             #     Target shape: {y.shape}")  # Debugging line
-            loss = criterion(output.squeeze().to("cpu"), torch.from_numpy(y).unsqueeze_(1))
+            loss = criterion(output.reshape(-1).to("cpu"), torch.from_numpy(y).reshape(-1).to("cpu"))
         model.train()
         return loss.item()
 
@@ -571,3 +574,58 @@ class ModelToolKit(object):
             p.data = original_params[k]
         
         return x_grid, y_grid, losses
+    
+    # Interactive visualization of the loss landscape during training
+    @staticmethod
+    def landscape_live(model, optimizer, criterion, epochs: int, data_loader: DataLoader, landscape_dataset: RTDataset,
+                        direction1, direction2, num_points, range_, device = "cpu"):
+        # Enable interactive mode
+        plt.ion()
+
+        fig = plt.figure(figsize=(14, 6))
+        ax3d = fig.add_subplot(121, projection='3d')
+        ax2d = fig.add_subplot(122)
+        
+        # Training loop with live visualization
+        for epoch in range(epochs):
+            print(f"Epoch {epoch}")
+            for inputs, targets in data_loader:
+                inputs, targets = inputs.to(device), targets.to(device)
+                
+                optimizer.zero_grad()
+                outputs = model(inputs.to(device))
+                loss = criterion(outputs.reshape(-1), targets.reshape(-1).to(device))
+                loss.backward()
+                optimizer.step()
+                # print(f'Epoch {epoch}: Loss {loss.item()}')
+
+            if epoch % 1 == 0:  # Visualize every epoch
+                x_grid, y_grid, losses = ModelToolKit.loss_landscape(model, criterion,
+                    landscape_dataset[0],
+                    landscape_dataset[1],
+                    direction1, direction2,
+                    num_points, range_,
+                    device = device)
+
+                ax3d.cla()
+                ax2d.cla()
+
+                X_, Y_ = np.meshgrid(x_grid, y_grid)
+                ax3d.plot_surface(X_, Y_, losses, cmap='viridis')
+                ax3d.set_xlabel('Direction 1')
+                ax3d.set_ylabel('Direction 2')
+                ax3d.set_zlabel('Loss')
+                ax3d.set_title(f'Loss Landscape at Epoch {epoch}')
+
+                contour = ax2d.contour(X_, Y_, losses, levels=50, cmap='viridis')
+                ax2d.set_xlabel('Direction 1')
+                ax2d.set_ylabel('Direction 2')
+                ax2d.set_title(f'Contour Plot of Loss Landscape at Epoch {epoch}')
+                fig.colorbar(contour, ax=ax2d)
+
+                plt.draw()
+                plt.pause(0.15)
+
+        # Turn off interactive mode
+        plt.ioff()
+        plt.show()
