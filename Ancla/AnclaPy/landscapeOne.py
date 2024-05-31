@@ -9,7 +9,7 @@ from Ancla import Featurizer, RTDataset, BuModel, ModelToolKit
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
-batch_size = 3000
+batch_size = 32
     
 if __name__ == "__main__":
 
@@ -98,6 +98,10 @@ model.to("cpu")
 direction1 = [torch.randn_like(p) for p in model.parameters()]
 direction2 = [torch.randn_like(p) for p in model.parameters()]
 
+# save model
+model.eval()
+torch.save(model.state_dict(), "model_LandscapeTest1.pt")
+model.train()
 # Compute loss landscape
 x_grid, y_grid, losses = ModelToolKit.loss_landscape(model, criterion,
                                                       test_dataset.__getitem__(range(len(test_dataset)))[0].reshape(61099,
