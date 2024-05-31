@@ -539,20 +539,20 @@ class ModelToolKit(object):
 
     # Function to compute loss
     @staticmethod
-    def get_loss(model, criterion, X, y):
+    def get_loss(model, criterion, X, y, device = "cpu"):
         model.eval()
         with torch.no_grad():
-            output = model(X)
+            output = model(X.to(device))
             # print(f"Output shape: {output.shape},\
             #     Target shape: {y.shape}")  # Debugging line
-            loss = criterion(output.squeeze(), torch.from_numpy(y).unsqueeze_(1))
+            loss = criterion(output.squeeze().to("cpu"), torch.from_numpy(y).unsqueeze_(1))
         model.train()
         return loss.item()
 
     # Function to compute the loss landscape
     @staticmethod
     def loss_landscape(model, criterion, X, y, direction1,
-                        direction2, num_points=50, range_=5.0):
+                        direction2, num_points=50, range_=5.0, device = "cpu"):
         original_params = [p.clone() for p in model.parameters()]
         losses = np.zeros((num_points, num_points))
         x_grid = np.linspace(-range_, range_, num_points)
@@ -563,7 +563,7 @@ class ModelToolKit(object):
                 for k, p in enumerate(model.parameters()):
                     p.data = original_params[k] + xi * \
                             direction1[k] + yj * direction2[k]
-                losses[i, j] = ModelToolKit.get_loss(model, criterion, X, y)
+                losses[i, j] = ModelToolKit.get_loss(model, criterion, X, y, device = device)
                 print("Calculating Loss for Landscape: ", i, j)
 
         # Restore original parameters
