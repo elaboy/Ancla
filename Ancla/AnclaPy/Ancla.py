@@ -543,9 +543,9 @@ class ModelToolKit(object):
         model.eval()
         with torch.no_grad():
             output = model(X)
-            print(f"Output shape: {output.shape},
-                Target shape: {y.shape}")  # Debugging line
-            loss = criterion(output, y)
+            # print(f"Output shape: {output.shape},\
+            #     Target shape: {y.shape}")  # Debugging line
+            loss = criterion(output.squeeze(), torch.from_numpy(y).unsqueeze_(1))
         model.train()
         return loss.item()
 
@@ -564,6 +564,7 @@ class ModelToolKit(object):
                     p.data = original_params[k] + xi * \
                             direction1[k] + yj * direction2[k]
                 losses[i, j] = ModelToolKit.get_loss(model, criterion, X, y)
+                print("Calculating Loss for Landscape: ", i, j)
 
         # Restore original parameters
         for k, p in enumerate(model.parameters()):
