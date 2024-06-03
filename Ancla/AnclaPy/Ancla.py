@@ -641,3 +641,132 @@ class ModelToolKit(object):
         # Turn off interactive mode
         plt.ioff()
         plt.show()
+
+class LandscapeExplorer():
+    def __init__(self, model: torch.Module, criterion, training_dataloader, testing_dataloader, num_points, range_, device = "cpu"):
+        self.model = model
+        self.criterion = criterion
+        self.training_dataloader = training_dataloader
+        self.testing_dataloader = testing_dataloader
+        self.direction1, self.direction2 = self.random_directions(model)
+        self.num_points = num_points
+        self.range_ = range_
+        self.device = device
+        self.initial_params = [param.clone() for param in self.model.parameters()]
+        self.path_alphas = []
+        self.path_betas = []
+        self.path_losses = []
+
+    # Function to train the model for a few steps
+    def train_step(model, X, y, criterion, optimizer):
+        model.train()
+        optimizer.zero_grad()
+        outputs = model(X.reshape(len(X), 1, 7, 100).to("cuda"))
+        loss = criterion(outputs.reshape(-1).to("cpu"), y.reshape(-1).to("cpu"))
+        loss.backward()
+        optimizer.step()
+        return loss.item()
+    
+    # Function to generate random directions
+    def random_directions(model):
+        direction_1 = [torch.randn_like(param) for param in model.parameters()]
+        direction_2 = [torch.randn_like(param) for param in model.parameters()]
+        return direction_1, direction_2
+
+    # Function to interpolate between parameters
+    def interpolate_params(initial_params, final_params, alpha, beta, direction_1, direction_2):
+        interpolated_params = []
+        for param_init, param_final, dir1, dir2 in zip(initial_params, final_params, direction_1, direction_2):
+            interpolated_params.append(param_init + alpha * (param_final - param_init) + beta * dir2)
+        return interpolated_params
+    
+    # Function to set model parameters
+    def set_model_params(model, params):
+        with torch.no_grad():
+            for param, param_new in zip(model.parameters(), params):
+                param.copy_(param_new)
+
+    def run(self):
+        for _ in range(10):
+            for inputs, targets in LandscapeExplorer.training_dataloader:
+                inputs, targets = inputs.to("cuda"), targets.to("cuda")
+                self.train_step(self.model, inputs, targets, self.criterion, self.optimizer)
+        final_params = [param.clone() for param in self.model.parameters()]
+
+        # Generate a few test points to determine the highest loss
+        alphas = np.linspace(-1, 1, 5)  # Fewer points for initial test
+        betas = np.linspace(-1, 1, 5)
+        highest_loss = 0
+
+        original_params = [param.clone() for param in self.model.parameters()]
+
+        for alpha in alphas:
+            for beta in betas:
+                interpolated_params = self.interpolate_params(original_params, final_params, alpha, beta, self.direction_1, self.direction_2)
+                self.set_model_params(self.model, interpolated_params)
+                with torch.no_grad():
+                    total_loss = 0
+                    for inputs, targets in self.training_dataloader:
+                        inputs, targets = inputs.to("cuda"), targets.to("cuda")
+                        outputs = self.model(inputs)
+                        loss = self.criterion(outputs.flatten(), targets.flatten())
+                        total_loss += loss.item()
+                    highest_loss = max(highest_loss, total_loss / len(self.training_dataloader))
+                    print(f'testing points | Alpha: {alpha}, Beta: {beta}, Loss: {total_loss}')
+
+        # Generate loss landscape by interpolating in two directions
+        alphas = np.linspace(-1, 1, 5)
+        betas = np.linspace(-1, 1, 5)
+        losses = np.zeros((len(alphas), len(betas)), dtype=np.float64)  # Initialize losses array
+
+        for i, alpha in enumerate(alphas):
+            for j, beta in enumerate(betas):
+                # Interpolate parameters
+                interpolated_params = self.interpolate_params(original_params, final_params, alpha, beta, self.direction_1, self.direction_2)
+                self.set_model_params(self.model, interpolated_params)
+
+                # Compute loss for all test examples
+                total_loss = 0
+                with torch.no_grad():
+                    for inputs, targets in self.testing_dataloader:
+                        inputs, targets = inputs.to("cuda"), targets.to("cuda")
+                        outputs = self.model(inputs)
+                        loss = self.criterion(outputs.flatten(), targets.flatten())
+                        total_loss += loss.item()
+
+                # Average loss across all test examples and take the logarithm
+                average_loss = total_loss / len(self.testing_dataloader)
+                log_loss = np.log(average_loss + 1e-10)  # Adding a small value to avoid taking the log of zero
+                losses[i, j] = log_loss
+                print(f'landscape test | Alpha: {alpha}, Beta: {beta}, Loss: {log_loss}')
+
+                # Record path for the line plot
+                if alpha in alphas and beta in betas:
+                    self.path_alphas.append(alpha)
+                    self.path_betas.append(beta)
+                    self.path_losses.append(log_loss)
+
+        # Plot the contour plot of the loss landscape
+        plt.contourf(alphas, betas, losses, cmap='viridis')
+        plt.xlabel('Alpha')
+        plt.ylabel('Beta')
+        plt.colorbar(label='Log Loss')
+        plt.title('Contour Plot of Log Loss Landscape')
+
+        # Mesh plot
+        fig = plt.figure()
+        X_, Y_ = np.meshgrid(alphas, betas)
+        ax = fig.add_subplot(111, projection='3d')
+        ax.contourf(X_, Y_, losses, cmap='viridis', zdir='z', offset=losses.min())
+        ax.set_xlabel('Alpha')
+        ax.set_ylabel('Beta')
+        ax.set_zlabel('Log Loss')
+        ax.set_title('Contour Plot of Log Loss Landscape')
+
+        # Plot the mesh
+        ax.plot_surface(X_, Y_, losses, cmap='viridis', alpha=0.5)
+
+        # Plot the line representing the movement
+        ax.plot(self.path_alphas, self.path_betas, self.path_losses, marker='o', color='r', linestyle='-')
+
+        plt.show()

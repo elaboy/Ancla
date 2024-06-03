@@ -751,7 +751,7 @@ public class TestDbOperations
             @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
         };
 
-        string dbPath = @"D:\toCSVRAW.db";
+        string dbPath = @"D:\toCSVRAW_baseSequencesOnly.db";
         bool anyError = false;
 
         DbOperations.DbConnectionInit(dbPath, out anyError);

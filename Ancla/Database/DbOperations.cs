@@ -94,7 +94,7 @@ public static class DbOperations
         psms = psms.Where(p => p.AmbiguityLevel == "1").ToList();
 
         //group all psms by full sequence 
-        var groupedPsms = psms.GroupBy(p => p.FullSequence).ToList();
+        var groupedPsms = psms.GroupBy(p => p.BaseSequence).ToList();
 
         var psmsToUpload = new List<PSM>();
 
@@ -106,7 +106,7 @@ public static class DbOperations
             //search for the psm FullSequence in the database
             var existingData = context.PSMs
                 .FirstOrDefault(p => p.FileName == group.First().FileName &&
-                                     p.FullSequence == group.Key &&
+                                     p.BaseSequence == group.Key &&
                                      p.QValue <= 0.01);
 
             //if nothing, upload it to the database
