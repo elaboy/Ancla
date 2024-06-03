@@ -56,15 +56,16 @@ if __name__ == "__main__":
 
     criterion = torch.nn.MSELoss() #maybe huberloss is better for this task
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum = 0.9, weight_decay=1e-5)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum = 0.9, weight_decay=1e-5)
 
     train_losses = []
     val_losses = []
 
-    epochs = 5
+    epochs = 1
 
-    landscape_subsample = train_dataset.__getitem__(range(len(train_dataset)//10))
-
+    landscape_subsample = train_dataset.__getitem__(100)
+    # take 100 freom the landscape subsample
+    # landscape_subsample = RTDataset(landscape_subsample[0][:100], landscape_subsample[1][:100])
     if trained == False:
         model.train()
         running_loss = 0.0
@@ -72,10 +73,10 @@ if __name__ == "__main__":
         direction1 = [torch.randn_like(p) for p in model.parameters()]
         direction2 = [torch.randn_like(p) for p in model.parameters()]
         
-        ModelToolKit.landscape_live(model = model, optimizer = optimizer, criterion = criterion,
-                                            epochs = epochs, data_loader = train_loader, landscape_dataset = landscape_subsample,
-                                            direction1 = direction1, direction2 = direction2,
-                                            num_points = 5, range_ = 5.0, device = device)
+        ModelToolKit.landscape(model = model, criterion = criterion, 
+                               X = landscape_subsample[0], y = landscape_subsample[1],
+                               direction1 = direction1, direction2 = direction2,
+                               num_points = 300, range_ = 10.0, device = device)
         
         #     model.eval()
         #     val_loss = 0.0

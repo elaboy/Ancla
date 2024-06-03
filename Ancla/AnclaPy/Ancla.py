@@ -575,6 +575,18 @@ class ModelToolKit(object):
         
         return x_grid, y_grid, losses
     
+    # Function to compute the loss landscape and plot it. Used for model evaluation when it is not trained.
+    @staticmethod
+    def landscape(model, criterion, X, y, direction1, direction2, num_points=50, range_=5.0, device = "cpu"):
+        x_grid, y_grid, losses = ModelToolKit.loss_landscape(model, criterion, X, y,
+                                                              direction1, direction2, num_points,
+                                                                range_, device = device)
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        X_, Y_ = np.meshgrid(x_grid, y_grid)
+        ax.plot_surface(X_, Y_, losses, cmap='viridis')
+        plt.show()
+    
     # Interactive visualization of the loss landscape during training
     @staticmethod
     def landscape_live(model, optimizer, criterion, epochs: int, data_loader: DataLoader, landscape_dataset: RTDataset,
