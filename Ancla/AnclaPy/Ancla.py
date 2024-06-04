@@ -536,115 +536,13 @@ class RTDataset(Dataset):
 
         return torch.tensor(self.X[idx]).unsqueeze_(0), self.y[idx]
     
-class ModelToolKit(object):
-
-    # Function to compute loss
-    @staticmethod
-    def get_loss(model, criterion, X, y, device = "cpu"):
-        model.eval()
-        with torch.no_grad():
-            # make X reshape to (batch_size, 1, 7, 100)
-            X = X.reshape(-1, 1, 7, 100)
-            output = model(X.to(device))
-            # print(f"Output shape: {output.shape},\
-            #     Target shape: {y.shape}")  # Debugging line
-            loss = criterion(output.reshape(-1).to("cpu"), torch.from_numpy(y).reshape(-1).to("cpu"))
-        model.train()
-        return loss.item()
-
-    # Function to compute the loss landscape
-    @staticmethod
-    def loss_landscape(model, criterion, X, y, direction1,
-                        direction2, num_points=50, range_=5.0, device = "cpu"):
-        original_params = [p.clone() for p in model.parameters()]
-        losses = np.zeros((num_points, num_points))
-        x_grid = np.linspace(-range_, range_, num_points)
-        y_grid = np.linspace(-range_, range_, num_points)
-
-        for i, xi in enumerate(x_grid):
-            for j, yj in enumerate(y_grid):
-                for k, p in enumerate(model.parameters()):
-                    p.data = original_params[k] + xi * \
-                            direction1[k] + yj * direction2[k]
-                losses[i, j] = ModelToolKit.get_loss(model, criterion, X, y, device = device)
-                print("Calculating Loss for Landscape: ", i, j)
-
-        # Restore original parameters
-        for k, p in enumerate(model.parameters()):
-            p.data = original_params[k]
-        
-        return x_grid, y_grid, losses
-    
-    # Function to compute the loss landscape and plot it. Used for model evaluation when it is not trained.
-    @staticmethod
-    def landscape(model, criterion, X, y, direction1, direction2, num_points=50, range_=5.0, device = "cpu"):
-        x_grid, y_grid, losses = ModelToolKit.loss_landscape(model, criterion, X, y,
-                                                              direction1, direction2, num_points,
-                                                                range_, device = device)
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        X_, Y_ = np.meshgrid(x_grid, y_grid)
-        ax.plot_surface(X_, Y_, losses, cmap='viridis')
-        plt.show()
-    
-    # Interactive visualization of the loss landscape during training
-    @staticmethod
-    def landscape_live(model, optimizer, criterion, epochs: int, data_loader: DataLoader, landscape_dataset: RTDataset,
-                        direction1, direction2, num_points, range_, device = "cpu"):
-        # Enable interactive mode
-        plt.ion()
-
-        fig = plt.figure(figsize=(14, 6))
-        ax3d = fig.add_subplot(121, projection='3d')
-        ax2d = fig.add_subplot(122)
-        
-        # Training loop with live visualization
-        for epoch in range(epochs):
-            print(f"Epoch {epoch}")
-            for inputs, targets in data_loader:
-                inputs, targets = inputs.to(device), targets.to(device)
-                
-                optimizer.zero_grad()
-                outputs = model(inputs.to(device))
-                loss = criterion(outputs.reshape(-1), targets.reshape(-1).to(device))
-                loss.backward()
-                optimizer.step()
-                # print(f'Epoch {epoch}: Loss {loss.item()}')
-
-            if epoch % 1 == 0:  # Visualize every epoch
-                x_grid, y_grid, losses = ModelToolKit.loss_landscape(model, criterion,
-                    landscape_dataset[0],
-                    landscape_dataset[1],
-                    direction1, direction2,
-                    num_points, range_,
-                    device = device)
-
-                ax3d.cla()
-                ax2d.cla()
-
-                X_, Y_ = np.meshgrid(x_grid, y_grid)
-                ax3d.plot_surface(X_, Y_, losses, cmap='viridis')
-                ax3d.set_xlabel('Direction 1')
-                ax3d.set_ylabel('Direction 2')
-                ax3d.set_zlabel('Loss')
-                ax3d.set_title(f'Loss Landscape at Epoch {epoch}')
-
-                contour = ax2d.contour(X_, Y_, losses, levels=50, cmap='viridis')
-                ax2d.set_xlabel('Direction 1')
-                ax2d.set_ylabel('Direction 2')
-                ax2d.set_title(f'Contour Plot of Loss Landscape at Epoch {epoch}')
-                fig.colorbar(contour, ax=ax2d)
-
-                plt.draw()
-                plt.pause(0.15)
-
-        # Turn off interactive mode
-        plt.ioff()
-        plt.show()
-
 class LandscapeExplorer():
+    '''
+    Class to explore the loss landscape of a model by interpolating between two points in two directions. 
+        Paper: https://arxiv.org/abs/1712.09913
+    '''
     def __init__(self, model: torch.nn, criterion : torch.nn, optimizer : torch.optim.Optimizer,
-                 training_dataloader : DataLoader, testing_dataset: Dataset, epochs : int, num_points : int, range_ : float):
+                 training_dataloader : DataLoader, testing_dataset: Dataset, epochs : int, num_points : int, range_ : float) -> None:
         self.model = model
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model.to(self.device) #move to device
@@ -662,7 +560,7 @@ class LandscapeExplorer():
         self.path_losses = []
 
     # Function to train the model for a few steps
-    def __train_step__(self, X, y):
+    def __train_step__(self, X: torch.Tensor, y: torch.Tensor) -> float:
         self.model.train()
         self.optimizer.zero_grad()
         outputs = self.model(X.reshape(len(X), 1, 7, 100).to(self.device))
@@ -672,25 +570,28 @@ class LandscapeExplorer():
         return loss.item()
     
     # Function to generate random directions
-    def __random_directions__(self):
+    def __random_directions__(self) -> list:
         direction_1 = [torch.randn_like(param) for param in self.model.parameters()]
         direction_2 = [torch.randn_like(param) for param in self.model.parameters()]
         return direction_1, direction_2
 
     # Function to interpolate between parameters
-    def __interpolate_params__(self, initial_params, final_params, alpha, beta):
+    def __interpolate_params__(self, initial_params: list, final_params: list, alpha: NDArray, beta: NDArray) -> list:
         interpolated_params = []
         for param_init, param_final, dir1, dir2 in zip(initial_params, final_params, self.direction_1, self.direction_2):
             interpolated_params.append(param_init + alpha * (param_final - param_init) + beta * dir2)
         return interpolated_params
     
     # Function to set model parameters
-    def __set_model_params__(self, params):
+    def __set_model_params__(self, params: list) -> None:
         with torch.no_grad():
             for param, param_new in zip(self.model.parameters(), params):
                 param.copy_(param_new)
 
-    def run(self):
+    def run(self) -> None:
+        '''
+        Function to run the landscape exploration algorithm
+        '''
         for epoch in range(self.epochs):
             print(f'Training Step Epoch: {epoch}')
             for inputs, targets in self.training_dataloader:
@@ -766,6 +667,5 @@ class LandscapeExplorer():
         self.path_alphas = np.array(self.path_alphas)
         self.path_betas = np.array(self.path_betas)
         self.path_losses = np.array(self.path_losses)
-
 
         plt.show()
