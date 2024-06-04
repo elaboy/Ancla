@@ -14,9 +14,13 @@ public class PsmService
 
             foreach (var psm in psmtsv)
             {
-                psms.Add(new PSM(psm));
+                if (psm.DecoyContamTarget == "T")
+                {
+                    psms.Add(new PSM(psm));
+                }
             }
         }
+
         return psms;
     }
 }

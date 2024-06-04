@@ -1,10 +1,55 @@
 ﻿using AnchorLib;
+using MathNet.Numerics;
+using MathNet.Numerics.Statistics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Plotly.NET;
+using Plotly.NET.CSharp;
+using Plotly.NET.ImageExport;
+using System.Data;
+using System.Globalization;
+using ThermoFisher.CommonCore.Data;
+using Chart = Plotly.NET.CSharp.Chart;
+using GenericChartExtensions = Plotly.NET.GenericChartExtensions;
 
 namespace Database;
 
 public static class DbOperations
 {
-    public static string ConnectionString = @"Data Source = D:\anchor.db";
+    public static string ConnectionString =
+        @"Data Source = D:\anchor_testing_linear_model.db";
+
+    public static void DbConnectionInit(string dbPathAndName, out bool anyErrors)
+    {
+        // create a service collection and configure it for DbContext
+        var services = new ServiceCollection()
+            .AddDbContextFactory<PsmContext>(options =>
+                options.UseSqlite(@"Data Source = " + dbPathAndName));
+
+        // Builds the service provider
+        var serviceProvider = services.BuildServiceProvider();
+
+        // Get the DbContext factory from the service provider
+        var dbContextFactory =
+            serviceProvider.GetRequiredService<IDbContextFactory<PsmContext>>();
+
+        // Creates new instance of the DbContext
+        using (var dbContext = dbContextFactory.CreateDbContext())
+        {
+            try
+            {
+                // Apply any pending migrations
+                dbContext.Database.Migrate();
+                anyErrors = false;
+                Console.WriteLine("Datbase migration successful.");
+            }
+            catch (Exception exception)
+            {
+                anyErrors = true;
+                Console.WriteLine(exception.Message);
+            }
+        }
+    }
     public static void AddPsms(PsmContext context, List<PSM> psms)
     {
         foreach (var psm in psms)
@@ -20,28 +65,126 @@ public static class DbOperations
         context.SaveChanges();
     }
 
+    public static void AnalizeAndAddPsmEntry(PsmContext context, PSM psm)
+    {
+        // search for the psm FullSequence in the database
+        var existingData = context.PSMs
+            .FirstOrDefault(p => p.FileName == psm.FileName &&
+                                 p.FullSequence == psm.FullSequence);
+
+        // if nothing, upload it to the database
+        if (existingData == null)
+        {
+            context.Add(psm);
+            context.SaveChanges();
+        }
+    }
+
+    public static void AnalizeAndAddPsmsFile(PsmContext context, List<PSM> psms)
+    {
+        foreach (var psm in psms)
+        {
+            AnalizeAndAddPsmEntry(context, psm);
+        }
+    }
+
+    public static void AnalizeAndAddPsmsBulk(PsmContext context, List<PSM> psms)
+    {
+        //Get rid of ambiguous psms
+        psms = psms.Where(p => p.AmbiguityLevel == "1").ToList();
+
+        //group all psms by full sequence 
+        var groupedPsms = psms.GroupBy(p => p.BaseSequence).ToList();
+
+        var psmsToUpload = new List<PSM>();
+
+        //take the median of the retention times
+        foreach (var group in groupedPsms)
+        {
+            var medianRetentionTime = group.Select(p => p.ScanRetentionTime).Median();
+
+            //search for the psm FullSequence in the database
+            var existingData = context.PSMs
+                .FirstOrDefault(p => p.FileName == group.First().FileName &&
+                                     p.BaseSequence == group.Key &&
+                                     p.QValue <= 0.01);
+
+            //if nothing, upload it to the database
+            if (existingData == null)
+            {
+                psmsToUpload.Add(new PSM
+                {
+                    FileName = group.First().FileName,
+                    BaseSequence = group.First().BaseSequence,
+                    FullSequence = group.Key,
+                    ScanRetentionTime = medianRetentionTime,
+                    QValue = group.First().QValue,
+                    PEP = group.First().PEP,
+                    PEPQvalue = group.First().PEPQvalue,
+                    PrecursorCharge = group.First().PrecursorCharge,
+                    PrecursorMZ = group.First().PrecursorMZ,
+                    PrecursorMass = group.First().PrecursorMass,
+                    ProteinAccession = group.First().ProteinAccession,
+                    ProteinName = group.First().ProteinName,
+                    GeneName = group.First().GeneName,
+                    OrganismName = group.First().OrganismName,
+                    StartAndEndResidueInProtein = group.First().StartAndEndResidueInProtein,
+                    MassErrorDaltons = group.First().MassErrorDaltons,
+                    Score = group.First().Score,
+                    TotalIonCurrent = group.First().TotalIonCurrent,
+                    Notch = group.First().Notch,
+                    AmbiguityLevel = group.First().AmbiguityLevel,
+                    PeptideMonoisotopicMass = group.First().PeptideMonoisotopicMass
+                });
+            }
+        }
+
+        // transaction to add all new psms to the database
+        using (var transaction = context.Database.BeginTransaction())
+        {
+            // Add all new PSMs to the database
+            context.AddRange(psmsToUpload);
+            context.SaveChanges();
+            transaction.Commit();
+        }
+    }
+
     public static void AddPsmsNonRedundant(PsmContext context, List<PSM> psms)
     {
         //one bulk transaction instead of multiple transactions (per psm) 
-        var psmsInDB = context.PSMs.ToList();
+        var psmsInDb = context.PSMs.ToList();
 
         List<PSM> psmsToUpload = new List<PSM>();
 
-        Parallel.ForEach(psms, psm =>
+        // empty database, dont check for redundancy, else upload every psm with qvalue <= 0.01
+        if (psmsInDb.IsNullOrEmpty())
         {
-            // Fetch existing data in bulk
-            var existingData = psmsInDB
-                .FirstOrDefault(p => p.FileName == psm.FileName &&
-                                     p.FullSequence == psm.FullSequence);
-            //.ToList();
+            psmsToUpload.AddRange(psms.Where(p => p.QValue <= 0.01));
+        }
+        else
+        {
 
-            if (existingData == null)
+            Parallel.ForEach(psms, psm =>
             {
-                // Add new PSM if not found in the database
-                psmsToUpload.Add(psm);
-            }
-        });
+                if (psm.QValue <= 0.01)
+                {
+                    // Fetch existing data in bulk
+                    var existingData = psmsInDb
+                        .FirstOrDefault(p => p.FileName == psm.FileName &&
+                                             p.FullSequence == psm.FullSequence);
+                    //.ToList();
 
+                    if (existingData == null)
+                    {
+                        // Add new PSM if not found in the database
+                        psmsToUpload.Add(psm);
+                    }
+                }
+
+            });
+        }
+
+        // transaction to add all new psms to the database
         using (var transaction = context.Database.BeginTransaction())
         {
 
@@ -85,15 +228,282 @@ public static class DbOperations
             return groupedAnchors;
         }
     }
-}
 
-public class ArchorOperations
-{
-    public void IdentifyAnchors()
+    public static List<(PSM, PSM)> GetFullSequencesOverlaps(PsmContext context,
+        List<PSM> psms)
     {
+
+        var databasePsms = context.PSMs.ToList();
+
+        List<(PSM, PSM)> overlappingPsms = new List<(PSM, PSM)>();
+
+        Parallel.ForEach(psms, psm =>
+        {
+            var existingData = databasePsms
+                .FirstOrDefault(p => p.FullSequence == psm.FullSequence);
+
+            if (existingData != null)
+            {
+                overlappingPsms.Add((existingData, psm));
+            }
+        });
+
+        return overlappingPsms;
     }
 
+    #region Linear Regression Code
 
+    public static (double, double) FitLinearModelToData(List<(PSM, PSM)> overlaps)
+    {
+        if (overlaps.IsNullOrEmpty())
+            throw new Exception("No overlapping data found.");
+
+        //database psms
+        var y = overlaps.Select(psmTuple => psmTuple.Item1)
+            //.OrderByDescending(p => p.ScanRetentionTime)
+            .ToArray();
+
+        //experimental psms
+        var x = overlaps.Select(psmTuple => psmTuple.Item2)
+            //.OrderByDescending(p => p.ScanRetentionTime)
+            .ToArray();
+
+        (double, double) model = Fit.Line(x.Select(p => p.ScanRetentionTime).ToArray(),
+            y.Select(p => p.ScanRetentionTime).ToArray());
+
+        var intercept = model.Item1;
+        var slope = model.Item2;
+
+        return (intercept, slope);
+    }
+
+    //public static Vector<double> FitWeightedRegression(List<(PSM, PSM)> overlaps)
+    //{
+    //    //database psms
+    //    var y = overlaps.Select(psmTuple => psmTuple.Item1)
+    //        .OrderByDescending(p => p.ScanRetentionTime)
+    //        .ToArray();
+
+    //    //experimental psms
+    //    var x = overlaps.Select(psmTuple => psmTuple.Item2)
+    //        .OrderByDescending(p => p.ScanRetentionTime)
+    //        .ToArray();
+
+    //    var x_matrix = Matrix<double>.Build.DenseOfArray(x.Select(p => p.ScanRetentionTime).ToArray());
+    //    var y_vector = Vector<double>.Build.DenseOfArray(y.Select(p => p.ScanRetentionTime).ToArray());
+
+    //    var weights = Matrix<double>.Build.DenseOfArray(y.Select(p => 1 / p.ScanRetentionTime).ToArray());
+
+    //    var vector = MathNet.Numerics.LinearRegression.WeightedRegression.Weighted(x_matrix, y_vector, weights);
+
+    //}
+
+    public static List<(PSM, PSM, PSM)> TransformExperimentalRetentionTimes(List<(PSM, PSM)> overlaps,
+        (double, double) model)
+    {
+        var intercept = model.Item1;
+        var slope = model.Item2;
+
+        List<(PSM, PSM, PSM)> transformedData = new List<(PSM, PSM, PSM)>();
+
+        foreach (var psm in overlaps)
+        {
+            transformedData.Add((psm.Item1, psm.Item2, new PSM()
+            {
+                FileName = psm.Item2.FileName,
+                BaseSequence = psm.Item2.BaseSequence,
+                FullSequence = psm.Item2.FullSequence,
+                ScanRetentionTime = (psm.Item2.ScanRetentionTime * slope) + intercept,
+                QValue = psm.Item2.QValue,
+                PEP = psm.Item2.PEP,
+                PEPQvalue = psm.Item2.PEPQvalue,
+                PrecursorCharge = psm.Item2.PrecursorCharge,
+                PrecursorMZ = psm.Item2.PrecursorMZ,
+                PrecursorMass = psm.Item2.PrecursorMass,
+                ProteinAccession = psm.Item2.ProteinAccession,
+                ProteinName = psm.Item2.ProteinName,
+                GeneName = psm.Item2.GeneName,
+                OrganismName = psm.Item2.OrganismName,
+                StartAndEndResidueInProtein = psm.Item2.StartAndEndResidueInProtein,
+                MassErrorDaltons = psm.Item2.MassErrorDaltons,
+                Score = psm.Item2.Score,
+                TotalIonCurrent = psm.Item2.TotalIonCurrent,
+                Notch = psm.Item2.Notch,
+                AmbiguityLevel = psm.Item2.AmbiguityLevel,
+                PeptideMonoisotopicMass = psm.Item2.PeptideMonoisotopicMass
+            }));
+        }
+
+        return transformedData;
+    }
+
+    public static void TransformationScatterPlot(List<(PSM, PSM, PSM)> data)
+    {
+        //calculate R^2 value
+        var pre_rSquared = GoodnessOfFit.RSquared(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item2.ScanRetentionTime).ToArray());
+
+        var post_rSquared = GoodnessOfFit.RSquared(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item3.ScanRetentionTime).ToArray());
+
+        var preTransformation = Chart.Scatter<double, double, string>(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item2.ScanRetentionTime).ToArray(),
+            StyleParam.Mode.Markers, pre_rSquared.ToString());
+
+        var postTransformation = Chart.Scatter<double, double, string>(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item3.ScanRetentionTime).ToArray(),
+            StyleParam.Mode.Markers, post_rSquared.ToString());
+
+        // make the two scatters into the same image using a grid
+        var grid = Chart.Grid(new[] { preTransformation, postTransformation }, 2, 1);
+
+        //remove timeout from puppeteer
+        PuppeteerSharpRendererOptions.launchOptions.Timeout = 0;
+
+        // save the plot
+        //grid.SavePNG(@"D:\transformation_scatter_plot.png", EngineType: null, 600, 400);
+        //show plot grid
+        GenericChartExtensions.Show(grid);
+    }
+
+    public static GenericChart.GenericChart GetTransformationScatterPlot(List<(PSM, PSM, PSM)> data)
+    {
+        //calculate R^2 value
+        var pre_rSquared = GoodnessOfFit.RSquared(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item2.ScanRetentionTime).ToArray());
+
+        var post_rSquared = GoodnessOfFit.RSquared(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item3.ScanRetentionTime).ToArray());
+
+        var preTransformation = Chart.Scatter<double, double, string>(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item2.ScanRetentionTime).ToArray(),
+            StyleParam.Mode.Markers, pre_rSquared.ToString());
+
+        var postTransformation = Chart.Scatter<double, double, string>(
+            data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+            data.Select(d => d.Item3.ScanRetentionTime).ToArray(),
+            StyleParam.Mode.Markers, post_rSquared.ToString());
+
+        // make the two scatters into the same image using a grid
+        var grid = Chart.Grid(new[] { preTransformation, postTransformation }, 2, 1);
+
+        //remove timeout from puppeteer
+        PuppeteerSharpRendererOptions.launchOptions.Timeout = 0;
+
+        return grid;
+        // save the plot
+        //grid.SavePNG(@"D:\transformation_scatter_plot.png", EngineType: null, 600, 400);
+        //show plot grid
+    }
+
+    public static GenericChart.GenericChart GetDistributions(List<(PSM, PSM, PSM)> data)
+    {
+        // calculate R^2 value and z-score for the pre-transformation data
+        var pre_rSquared = GoodnessOfFit.RSquared(
+                       data.Select(d => d.Item1.ScanRetentionTime).ToArray(),
+                                  data.Select(d => d.Item2.ScanRetentionTime).ToArray());
+
+        // calculate z-score for the pre-transformation data
+        var Zscores = GetZscores(data);
+
+        // blue color for the pre-transformation data
+        var preTransformation = Chart.Histogram<double, double, string>(
+                                  Zscores.Item1,
+                                  MarkerColor: new Optional<Color>(Color.fromString("blue"), true));
+
+        var postTransformation = Chart.Histogram<double, double, string>(
+                       Zscores.Item2,
+                        MarkerColor: new Optional<Color>(Color.fromString("red"), true));
+
+        // make the two scatters into the same image using a grid
+        var grid = Chart.Grid(new[] { preTransformation, postTransformation },
+            2, 1);
+
+        return grid;
+    }
+
+    #endregion
+
+    public static (double[], double[]) GetZscores(List<(PSM, PSM, PSM)> data)
+    {
+        var preTransformationZscores = new List<double>();
+        var postTransformationZscores = new List<double>();
+
+        // calculate z-score for the pre-transformation data
+        var preMean = data.Select(d => d.Item1.ScanRetentionTime).Mean();
+        var preStdDev = data.Select(d => d.Item1.ScanRetentionTime).StandardDeviation();
+
+        foreach (var psm in data)
+        {
+            preTransformationZscores.Add((psm.Item1.ScanRetentionTime - preMean) / preStdDev);
+        }
+
+        // calculate z-score for the post-transformation data
+        var postMean = data.Select(d => d.Item3.ScanRetentionTime).Mean();
+        var postStdDev = data.Select(d => d.Item3.ScanRetentionTime).StandardDeviation();
+
+        foreach (var psm in data)
+        {
+            postTransformationZscores.Add((psm.Item3.ScanRetentionTime - postMean) / postStdDev);
+        }
+
+        return (preTransformationZscores.ToArray(), postTransformationZscores.ToArray());
+    }
+
+    public static void SaveAsCSV(List<(PSM, PSM, PSM)> data, string path)
+    {
+        // Write the header
+        StreamWriter writer = new StreamWriter(path);
+        using (var csv = new CsvHelper.CsvWriter(writer, CultureInfo.InvariantCulture))
+        {
+            csv.WriteField("BaseSequence");
+            csv.WriteField("FullSequence");
+            csv.WriteField("Database");
+            csv.WriteField("Experimental");
+            csv.WriteField("PostTransformation");
+            csv.NextRecord();
+
+            foreach (var record in data)
+            {
+                csv.WriteField(record.Item1.BaseSequence);
+                csv.WriteField(record.Item1.FullSequence);
+                csv.WriteField(record.Item1.ScanRetentionTime);
+                csv.WriteField(record.Item2.ScanRetentionTime);
+                csv.WriteField(record.Item3.ScanRetentionTime);
+                csv.NextRecord();
+            }
+        }
+    }
+
+    public static void SaveAsCSV(List<(PSM, PSM)> data, string path)
+    {
+        // Write the header
+        StreamWriter writer = new StreamWriter(path);
+        using (var csv = new CsvHelper.CsvWriter(writer, CultureInfo.InvariantCulture))
+        {
+            csv.WriteField("BaseSequence");
+            csv.WriteField("FullSequence");
+            csv.WriteField("Database");
+            csv.WriteField("Experimental");
+            csv.NextRecord();
+
+            foreach (var record in data)
+            {
+                csv.WriteField(record.Item1.BaseSequence);
+                csv.WriteField(record.Item1.FullSequence);
+                csv.WriteField(record.Item1.ScanRetentionTime);
+                csv.WriteField(record.Item2.ScanRetentionTime);
+                csv.NextRecord();
+            }
+            writer.Close();
+        }
+    }
 }
-
 
