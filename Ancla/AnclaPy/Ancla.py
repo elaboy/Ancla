@@ -10,6 +10,8 @@ from torch import nn
 from torch.nn import functional as F
 import torch.utils
 from torch.utils.data import Dataset, DataLoader
+from multiprocessing import Pool, cpu_count
+from tqdm import tqdm
 
 aa_dict = {
     "PAD" : 0,
@@ -90,7 +92,7 @@ class Featurizer(object):
         # add the features into the final array, vstacked
         final_array = np.vstack(
             [np.array(peptides_as_dict_index), 
-             np.array(hydrophobicity),
+            #  np.array(hydrophobicity),
              np.array(z1_scale),
              np.array(z2_scale),
              np.array(z3_scale),
@@ -102,14 +104,15 @@ class Featurizer(object):
         return final_array
     
     @staticmethod
-    def featurize_all(data: list) -> NDArray:
-        # parallelize the featurization of the data
-        from joblib import Parallel, delayed
+    def featurize_all(data: list) -> list:
+        #run with tqdm for a progress bar, in parallel
+        with Pool(processes= cpu_count()) as pool:
+            features = list(tqdm(pool.imap_unordered(Featurizer.featurize, data), total=len(data), desc='Featurizing'))
 
-        # featurize the data
-        featurized_data = Parallel(n_jobs=-1)(delayed(Featurizer.featurize)(data) for data in data)
+        # list within list to list
+        features = [feature for feature in features]
 
-        return np.stack(featurized_data)
+        return features
     
     @staticmethod
     def normalize_targets(targets: list) -> NDArray:
@@ -434,7 +437,7 @@ class TransformationFunctions(object):
         return data
 
 class BuModel(nn.Module):
-    def __init__(self):
+    def __init__(self) -> torch.nn.Module:
         super(BuModel, self).__init__()
         # Convolutional layers
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3, padding=1, bias = False)
@@ -474,21 +477,21 @@ class BuModel(nn.Module):
 
         self.double()
 
-        # Initialize weights
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
-                # nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                nn.init.constant_(m.bias, 0)
+        # # Initialize weights
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv2d):
+        #         nn.init.kaiming_normal_(m.weight)
+        #         # nn.init.constant_(m.bias, 0)
+        #     elif isinstance(m, nn.BatchNorm2d):
+        #         nn.init.constant_(m.weight, 1)
+        #         nn.init.constant_(m.bias, 0)
+        #     elif isinstance(m, nn.Linear):
+        #         nn.init.kaiming_normal_(m.weight)
+        #         nn.init.constant_(m.bias, 0)
 
-    def _get_to_linear_dim(self):
+    def _get_to_linear_dim(self) -> None:
         with torch.no_grad():
-            x = torch.zeros(1, 1, 7, 100)
+            x = torch.zeros(1, 1, 6, 100)
             x = F.relu(self.bn1(self.conv1(x)))
             x = F.relu(self.bn2(self.conv2(x)))
             x = F.relu(self.bn3(self.conv3(x)))
@@ -496,7 +499,7 @@ class BuModel(nn.Module):
             x = F.relu(self.bn5(self.conv5(x)))
             self._to_linear = x.view(1, -1).size(1)
     
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # make sure the input tensor is of shape (batch_size, 1, 7, 100)
         # x = x.view(batch_size, 1, 7, 100)
         x = F.relu(self.bn1(self.conv1(x)))
@@ -523,18 +526,83 @@ class BuModel(nn.Module):
 
         return x
     
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, stride: int = 1, downsample: nn.Module = None) -> None:
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.downsample = downsample
+
+        self.double()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        identity = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        if self.downsample is not None:
+            identity = self.downsample(x)
+        out += identity
+        out = self.relu(out)
+        return out
+
+class BottomUpResNet(nn.Module):
+    def __init__(self, num_blocks: int) -> None:
+        super(BottomUpResNet, self).__init__()
+        self.in_channels = 4
+        self.conv1 = nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(4)
+        self.relu = nn.ReLU(inplace=True)
+        self.layer1 = self.make_layer(32, num_blocks)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.ltsm = nn.LSTM(32, 16, 1, batch_first=True)
+        self.fc = nn.Linear(16, 1)
+
+        self.double()
+
+    def make_layer(self, out_channels: int, num_blocks: int, stride: int = 1) -> nn.Module:
+        downsample = None
+        if stride != 1 or self.in_channels != out_channels:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False),
+                nn.BatchNorm2d(out_channels)
+            )
+        layers = []
+        layers.append(ResidualBlock(self.in_channels, out_channels, stride, downsample))
+        self.in_channels = out_channels
+        for _ in range(1, num_blocks):
+            layers.append(ResidualBlock(out_channels, out_channels))
+        return nn.Sequential(*layers)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.layer1(x)
+        x = self.avgpool(x)
+        x = x.view(1, 32, 32)
+        x, _ = self.ltsm(x)
+        x = self.relu(x)
+        x = self.fc(x)
+        return x
+    
 class RTDataset(Dataset):
 
-    def __init__(self, X, y):
+    def __init__(self, X: NDArray, y: NDArray) -> None:
         self.X = X
         self.y = y
 
     def __len__(self):
         return len(self.X)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> tuple:
 
-        return torch.tensor(self.X[idx]).unsqueeze_(0), self.y[idx]
+        return torch.from_numpy(np.array(self.X[idx], dtype = np.float64)).unsqueeze_(0), self.y[idx]
     
 class LandscapeExplorer():
     '''
@@ -542,29 +610,32 @@ class LandscapeExplorer():
         Paper: https://arxiv.org/abs/1712.09913
     '''
     def __init__(self, model: torch.nn, criterion : torch.nn, optimizer : torch.optim.Optimizer,
-                 training_dataloader : DataLoader, testing_dataset: Dataset, epochs : int, num_points : int, range_ : float) -> None:
+                 training_dataloader : DataLoader, validation_dataloader: DataLoader, testing_dataset: Dataset, num_points : int, range_ : float) -> None:
         self.model = model
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model.to(self.device) #move to device
         self.optimizer = optimizer
         self.criterion = criterion
         self.training_dataloader = training_dataloader
+        self.validation_dataloader = validation_dataloader
         self.testing_dataset = testing_dataset
         self.direction_1, self.direction_2 = self.__random_directions__()
-        self.epochs = epochs
         self.num_points = num_points
         self.range_ = range_
-        self.initial_params = [param.clone() for param in self.model.parameters()]
+        # self.initial_params = [param.clone() for param in self.model.parameters()]
         self.path_alphas = []
         self.path_betas = []
         self.path_losses = []
+        self.trainin_losses = []
+        self.testing_losses = []
+        self.validation_losses = []
 
     # Function to train the model for a few steps
     def __train_step__(self, X: torch.Tensor, y: torch.Tensor) -> float:
         self.model.train()
         self.optimizer.zero_grad()
-        outputs = self.model(X.reshape(len(X), 1, 7, 100).to(self.device))
-        loss = self.criterion(outputs.reshape(-1).to("cpu"), y.reshape(-1).to("cpu"))
+        outputs = self.model(X.to(self.device))
+        loss = self.criterion(outputs.reshape(-1), y.reshape(-1).to(self.device))
         loss.backward()
         self.optimizer.step()
         return loss.item()
@@ -574,13 +645,6 @@ class LandscapeExplorer():
         direction_1 = [torch.randn_like(param) for param in self.model.parameters()]
         direction_2 = [torch.randn_like(param) for param in self.model.parameters()]
         return direction_1, direction_2
-
-    # Function to interpolate between parameters
-    def __interpolate_params__(self, initial_params: list, final_params: list, alpha: NDArray, beta: NDArray) -> list:
-        interpolated_params = []
-        for param_init, param_final, dir1, dir2 in zip(initial_params, final_params, self.direction_1, self.direction_2):
-            interpolated_params.append(param_init + alpha * (param_final - param_init) + beta * dir2)
-        return interpolated_params
     
     # Function to set model parameters
     def __set_model_params__(self, params: list) -> None:
@@ -588,84 +652,127 @@ class LandscapeExplorer():
             for param, param_new in zip(self.model.parameters(), params):
                 param.copy_(param_new)
 
-    def run(self) -> None:
-        '''
-        Function to run the landscape exploration algorithm
-        '''
-        for epoch in range(self.epochs):
-            print(f'Training Step Epoch: {epoch}')
-            for inputs, targets in self.training_dataloader:
-                inputs, targets = inputs.to("cuda"), targets.to("cuda")
-                self.__train_step__(inputs, targets)
-        final_params = [param.clone() for param in self.model.parameters()]
 
-        # Generate a few test points to determine the highest loss
-        alphas = np.linspace(-self.range_, self.range_, 5)  
-        betas = np.linspace(-self.range_, self.range_, 5)
 
-        original_params = [param.clone() for param in self.model.parameters()]
+    # Function to interpolate between two points
+    def __interpolate_params__(self, initial_params, final_params, alpha, beta) -> tuple:
+        interpolated_params = []
+        for param_init, param_final in zip(initial_params, final_params):
+            dir1 = param_final - param_init
+            interpolated_params.append(param_init + alpha * dir1 + beta * torch.randn_like(param_init))
+        return interpolated_params
+    
+    def __calculate_loss__(self, alpha_beta) -> tuple:
+        alpha, beta = alpha_beta
+        interpolated_params = self.__interpolate_params__(self.initial_params, self.final_params, alpha, beta)
+        self.__set_model_params__(interpolated_params)
+        
+        total_loss = 0
+        with torch.no_grad():
+            # inputs, targets = inputs.to(self.device), targets.to(self.device)
+            outputs = self.model(self.testing_dataset[0])
+            loss = self.criterion(outputs.reshape(-1), self.testing_dataset[1].reshape(-1))
+            total_loss += loss.item()
+        
+        average_loss = total_loss / len(self.testing_dataset)
+        # log_loss = np.log(average_loss + 1e-10)  # Adding a small value to avoid taking the log of zero
 
-        # Generate loss landscape by interpolating in two directions
-        alphas = np.linspace(-self.range_, self.range_, self.num_points)  
-        betas = np.linspace(-self.range_, self.range_, self.num_points)
-        losses = np.zeros((len(alphas), len(betas)), dtype=np.float64)  # Initialize losses array
+        #empty gpu cache | VERY IMPORTANT
+        # torch.cuda.empty_cache()
 
-        for i, alpha in enumerate(alphas):
-            for j, beta in enumerate(betas):
-                # Interpolate parameters
-                interpolated_params = self.__interpolate_params__(original_params, final_params, alpha,
-                                                                   beta)
-                self.__set_model_params__(interpolated_params)
+        return (alpha, beta, average_loss)
 
-                # Compute loss for all test examples
-                total_loss = 0
-                with torch.no_grad():
-                    inputs = self.testing_dataset[:][0].unsqueeze(1).reshape(len(self.testing_dataset), 1, 7, 100).to(self.device)
-                    targets = torch.from_numpy(self.testing_dataset[:][1]).reshape(-1).to(self.device)
-                    outputs = self.model(inputs)
-                    loss = self.criterion(outputs.reshape(-1), targets.reshape(-1))
-                    total_loss += loss.item()
+    def __prepare_testing_dataset__(self):
+            self.testing_dataset = (self.testing_dataset[:][0].unsqueeze(1).reshape(self.testing_dataset[:][0].shape[1], 1, 6, 100).to(self.device),
+                                     torch.from_numpy(self.testing_dataset[:][1]).to(self.device))
 
-                # Average loss across all test examples and take the logarithm
-                average_loss = total_loss / len(self.testing_dataset)
-                log_loss = np.log(average_loss + 1e-10)  # Adding a small value to avoid taking the log of zero
-                losses[i, j] = log_loss
-                print(f'Exploring Landscape | Alpha: {alpha}, Beta: {beta}, Loss: {log_loss}')
-
-                # Record path for the line plot
-                if alpha in alphas and beta in betas:
-                    self.path_alphas.append(alpha)
-                    self.path_betas.append(beta)
-                    self.path_losses.append(log_loss)
-
-        #save the model
+    def __validation__(self) -> None:
         self.model.eval()
-        self.model = self.model.to("cpu")
-        torch.save(self.model.state_dict(), "6_3_24_BU_BaseSequence.pth")
+        with torch.no_grad():
+            total_loss = 0
+            for inputs, targets in tqdm(self.validation_dataloader, total = len(self.validation_dataloader), desc='Validating'):
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs.reshape(-1), targets.reshape(-1))
+                total_loss += loss.item()
+            average_loss = total_loss / len(self.validation_dataloader)
+            self.validation_losses.append(average_loss)
+    
+    # def test(self) -> torch.Tensor:
+    #     self.model.eval()
+    #     with torch.no_grad():
+    #         outputs = self.model(self.testing_dataset[0])
+    #         loss = self.criterion(outputs.reshape(-1), self.testing_dataset[1].reshape(-1))
+    #         return loss
 
-        # Plot the contour plot of the loss landscape
-        plt.contourf(alphas, betas, losses, cmap='viridis')
-        plt.xlabel('Alpha')
-        plt.ylabel('Beta')
-        plt.colorbar(label='Log Loss')
-        plt.title('Contour Plot of Log Loss Landscape')
+    def train(self, epochs: int) -> None:
+        self.__prepare_testing_dataset__()
+        for epoch in tqdm(range(epochs), desc='Epoch '):
+            epochs_loss = []
+            for inputs, targets in tqdm(self.training_dataloader, total = len(self.training_dataloader), desc='Training'):
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
+                epochs_loss.append(self.__train_step__(inputs, targets))
+            self.trainin_losses.append(np.mean(epochs_loss))
+            self.__validation__()
+            self.__inform_progress__()
+        
+        # print(self.test())
+        self.__get_plots__()
 
-        # Mesh plot
-        fig = plt.figure()
-        X_, Y_ = np.meshgrid(alphas, betas)
-        ax = fig.add_subplot(111, projection='3d')
-        # ax.contourf(X_, Y_, losses, cmap='viridis', zdir='z', offset=losses.min())
-        ax.set_xlabel('Alpha')
-        ax.set_ylabel('Beta')
-        ax.set_zlabel('Log Loss')
-        ax.set_title('Contour Plot of Log Loss Landscape')
-
-        # Plot the mesh
-        ax.plot_surface(X_, Y_, losses, cmap='viridis', alpha=0.9)
-
-        # Ensure path_alphas, path_betas, and path_losses are numpy arrays for correct plotting
-        self.path_alphas = np.array(self.path_alphas)
-        self.path_betas = np.array(self.path_betas)
-        self.path_losses = np.array(self.path_losses)
-
+    def __get_plots__(self) -> None:
+        plt.plot(self.trainin_losses, label='Training Loss')
+        plt.plot(self.validation_losses, label='Validation Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.tight_layout()
         plt.show()
+
+    def __inform_progress__(self) -> None:
+        print(f"Training Loss : {self.trainin_losses[-1]}, Validation Loss : {self.validation_losses[-1]}")
+
+    def get_landscape(self) -> None:
+            
+            self.final_params = [param.clone().detach() for param in self.model.parameters()]
+            self.initial_params = [param.clone().detach() for param in self.model.parameters()]
+
+            alphas = np.linspace(-self.range_, self.range_, self.num_points)  
+            betas = np.linspace(-self.range_, self.range_, self.num_points)
+            alpha_beta_combinations = [(alpha, beta) for alpha in alphas for beta in betas]
+
+            # Initialize losses array
+            losses = np.zeros((len(alphas), len(betas)), dtype=np.float64)
+            self.__prepare_landscape_set__()
+            self.model.eval()
+
+            for i, alpha_beta in enumerate(tqdm(alpha_beta_combinations, desc='Calculating Loss')):
+                losses[i // len(betas), i % len(betas)] = self.__calculate_loss__(alpha_beta)[2]
+                self.path_alphas.append(self.__calculate_loss__(alpha_beta)[0])
+                self.path_betas.append(self.__calculate_loss__(alpha_beta)[1])
+                self.path_losses.append(self.__calculate_loss__(alpha_beta)[2])
+            
+            self.model.eval()
+            self.model = self.model.to("cpu")
+            torch.save(self.model.state_dict(), "6_3_24_BU_BaseSequence.pth")
+
+            plt.contour(alphas, betas, losses, cmap='rainbow')
+            plt.xlabel('Alpha')
+            plt.ylabel('Beta')
+            plt.colorbar(label='Log Loss')
+            plt.title('Contour Plot of Log Loss Landscape')
+
+            # fig = plt.figure()
+            # X_, Y_ = np.meshgrid(alphas, betas)
+            # ax = fig.add_subplot(111, projection='3d')
+            # ax.set_xlabel('Alpha')
+            # ax.set_ylabel('Beta')
+            # ax.set_zlabel('Log Loss')
+            # ax.set_title('Contour Plot of Log Loss Landscape')
+
+            # ax.plot_surface(X_, Y_, losses, cmap='rainbow')
+
+            # self.path_alphas = np.array(self.path_alphas)
+            # self.path_betas = np.array(self.path_betas)
+            # self.path_losses = np.array(self.path_losses)
+
+            plt.show()
