@@ -94,7 +94,7 @@ public static class DbOperations
         psms = psms.Where(p => p.AmbiguityLevel == "1").ToList();
 
         //group all psms by full sequence 
-        var groupedPsms = psms.GroupBy(p => p.BaseSequence).ToList();
+        var groupedPsms = psms.GroupBy(p => p.FullSequence).ToList();
 
         var psmsToUpload = new List<PSM>();
 
@@ -106,8 +106,15 @@ public static class DbOperations
             //search for the psm FullSequence in the database
             var existingData = context.PSMs
                 .FirstOrDefault(p => p.FileName == group.First().FileName &&
-                                     p.BaseSequence == group.Key &&
+                                     p.FullSequence == group.Key &&
                                      p.QValue <= 0.01);
+
+            ////Only stay with unmodified peptides and phospho peptides
+            //if (!group.First().FullSequence.Contains('[') || 
+            //    !group.First().FullSequence.Contains("Phospho"))
+            //{
+            //    continue;
+            //}
 
             //if nothing, upload it to the database
             if (existingData == null)

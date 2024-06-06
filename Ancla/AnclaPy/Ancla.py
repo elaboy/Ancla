@@ -12,6 +12,7 @@ import torch.utils
 from torch.utils.data import Dataset, DataLoader
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
+import re
 
 aa_dict = {
     "PAD" : 0,
@@ -146,9 +147,109 @@ class Featurizer(object):
     @staticmethod
     def featurize_all_normalized(data: list) -> NDArray:
         return Featurizer.min_max_scaler(Featurizer.featurize_all(data))
-
-class HelperFunctions(object):
     
+    #Tokenizes the sequence and returns a list of pre-tokenized sequences (clean)
+    @staticmethod
+    def __get_pre_tokens__(df: pd.DataFrame) -> list:
+        preTokens = []
+        for index, row in tqdm(df.iterrows(), total = len(df), desc='Pre-Tokenizing'):
+            sequence = str(row["FullSequence"])
+            if(sequence.count("[") > 0):
+                stars = re.sub(
+                "(?<=[A-HJ-Z])\\[|(?<=\\[)[A-HJ-Z](?=\\])|(?<=[A-HJ-Z])\\](?=$|[A-Z]|(?<=\\])[^A-Z])",
+                    "*", sequence)
+                removedColon = re.sub("\\*(.*?):", "*", stars)
+                preTokens.append((removedColon, row["ScanRetentionTime"]))
+            else:
+                preTokens.append((sequence, row["ScanRetentionTime"]))
+
+        return preTokens
+
+    @staticmethod
+    def __tokenize_pre_token__(pre_Token: tuple, vocabularyDictionary: dict, sequenceLength: int) -> list:
+        '''
+        Tokenizes the preTokens and returns a list of tokens. 
+        '''
+        tokens = []
+        tokenList = []
+        modList = []
+
+        sequence = pre_Token[0]
+        retention_time = pre_Token[1]
+
+        # form the tokenList and the modList
+        for subSequence in sequence.split("*"):
+            if "on" not in subSequence:
+                for residue in subSequence:
+                    if residue in vocabularyDictionary:
+                        tokenList.append(vocabularyDictionary[residue])
+                        modList.append(0)
+                    else:
+                        tokenList.clear()
+                        modList.clear()
+                        break
+            else:
+                if subSequence in vocabularyDictionary:
+                    if subSequence[-1] == "X":
+                        tokenList.append(22)
+                        modList.append(vocabularyDictionary[subSequence])
+                    elif subSequence[-1] == "U":
+                        tokenList.append(21)
+                        modList.append(0)
+                    else:
+                        tokenList.append(vocabularyDictionary[subSequence[-1]])
+                        modList.append(vocabularyDictionary[subSequence])
+                else:
+                    tokenList.clear()
+                    modList.clear()
+                    break
+
+        # if the sequence is less than the sequence length, pad it with zeros
+        if len(tokenList) != 0:
+            while len(tokenList) < sequenceLength and len(modList) < sequenceLength:
+                tokenList.append(0)
+                modList.append(0)
+
+            # make 2D numpy array
+            arrayList = []
+            arrayList.append(np.array(tokenList, dtype=np.int32))
+            arrayList.append(np.array(modList, dtype=np.int32))
+
+            # stack the arrays
+            sequenceWithMods = np.vstack(arrayList)
+
+            # append the stacked arrays with the retention time to the tokens list
+            tokens.append((sequenceWithMods, float(retention_time)))
+
+        return tokens
+    
+    @staticmethod
+    def featurize_full_sequence(pre_token: tuple, vocabulary_dictionary: dict, sequence_length: int) -> list:
+        tokens = Featurizer.__tokenize_pre_token__(pre_token, vocabulary_dictionary, sequence_length)
+        return tokens
+
+    @staticmethod
+    def featurize_all_full_sequences(data: pd.DataFrame, vocabularyDictionary: dict, sequenceLength: int) -> tuple:
+        preTokens = Featurizer.__get_pre_tokens__(data)
+        
+        args_list = [(preToken, vocabularyDictionary, sequenceLength) for preToken in preTokens]
+
+        # parallel processing
+        with Pool(processes=cpu_count() - 1) as pool:
+            features = list(tqdm(pool.starmap(Featurizer.featurize_full_sequence, args_list), total=len(preTokens), desc='Featurizing'))
+
+        X = []
+        y = []
+        for item in features:
+            if len(item) == 0:
+                continue
+            for sequence, retention_time in item:
+                    X.append(sequence)
+                    y.append(retention_time)
+
+        return (X, y)
+    
+class HelperFunctions(object):
     #read data from csv. Headers are FullSequence, Database, Experimental, PostTransformation
     @staticmethod
     def read_results(path: str) -> pd.DataFrame:
@@ -560,8 +661,8 @@ class BottomUpResNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self.make_layer(32, num_blocks)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.ltsm = nn.LSTM(32, 16, 1, batch_first=True)
-        self.fc = nn.Linear(16, 1)
+        self.fc = nn.Linear(32, 1)
+        self.dropout = nn.Dropout(0.5)
 
         self.double()
 
@@ -585,9 +686,9 @@ class BottomUpResNet(nn.Module):
         x = self.relu(x)
         x = self.layer1(x)
         x = self.avgpool(x)
-        x = x.view(1, 32, 32)
-        x, _ = self.ltsm(x)
+        x = x.view(x.size(0), -1)
         x = self.relu(x)
+        x = self.dropout(x)
         x = self.fc(x)
         return x
     
@@ -683,8 +784,8 @@ class LandscapeExplorer():
         return (alpha, beta, average_loss)
 
     def __prepare_testing_dataset__(self):
-            self.testing_dataset = (self.testing_dataset[:][0].unsqueeze(1).reshape(self.testing_dataset[:][0].shape[1], 1, 6, 100).to(self.device),
-                                     torch.from_numpy(self.testing_dataset[:][1]).to(self.device))
+            self.testing_dataset = (self.testing_dataset[:][0].unsqueeze(1).reshape(self.testing_dataset[:][0].shape[1], 1, 2, 100).to(self.device),
+                                     torch.tensor(self.testing_dataset[:][1]).to(self.device))
 
     def __validation__(self) -> None:
         self.model.eval()
@@ -698,12 +799,47 @@ class LandscapeExplorer():
             average_loss = total_loss / len(self.validation_dataloader)
             self.validation_losses.append(average_loss)
     
-    # def test(self) -> torch.Tensor:
-    #     self.model.eval()
-    #     with torch.no_grad():
-    #         outputs = self.model(self.testing_dataset[0])
-    #         loss = self.criterion(outputs.reshape(-1), self.testing_dataset[1].reshape(-1))
-    #         return loss
+    def __test_plots__(self, predictions: torch.Tensor, experimental: torch.Tensor) -> None:
+        predictions = predictions.cpu().detach().numpy().reshape(-1)
+        experimental = experimental.cpu().detach().numpy().reshape(-1)
+        
+        # three plots horizontal
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+        #first plot: scatter plot of the predictions vs experimental
+        axs[0].scatter(experimental, experimental, s=0.5, color='red')
+        axs[0].scatter(predictions, experimental, s=0.5, color='blue')
+        axs[0].set_xlabel('Predictions')
+        axs[0].set_ylabel('Experimental')
+        axs[0].set_title('Predictions vs Experimental')
+
+        #second plot: lowess model to calibrate predictions to experimental
+        from statsmodels.nonparametric.smoothers_lowess import lowess
+        lowess_model = lowess(experimental, predictions, frac=1./3, it=4)
+        axs[1].scatter(experimental, experimental, s=0.5, color='red')
+        #interpolate the predictions to the experimental
+        interpolated_predictions = np.interp(predictions, lowess_model[:, 0], lowess_model[:, 1])
+        axs[1].scatter(interpolated_predictions, experimental, s=0.5, color='blue')
+        axs[1].set_xlabel('Predictions')
+        axs[1].set_ylabel('Experimental')
+        axs[1].set_title('Predictions vs Experimental (Calibrated)')
+
+        #third plot: Check if the range of the predictions is the same as the experimental
+        axs[2].hist(experimental, bins=100, color='red', alpha=0.5, label='Experimental')
+        axs[2].hist(predictions, bins=100, color='blue', alpha=0.5, label='Predictions')
+        axs[2].set_title('Experimental and Predictions')
+        axs[2].set_xlabel('RT')
+        axs[2].set_ylabel('Frequency')
+        axs[2].legend()
+
+        plt.show()
+
+    def test(self) -> torch.Tensor:
+        self.model.eval()
+        with torch.no_grad():
+            outputs = self.model(self.testing_dataset[0])
+            # loss = self.criterion(outputs.reshape(-1), self.testing_dataset[1].reshape(-1))
+            self.__test_plots__(outputs, self.testing_dataset[1])
 
     def train(self, epochs: int) -> None:
         self.__prepare_testing_dataset__()
@@ -718,6 +854,9 @@ class LandscapeExplorer():
         
         # print(self.test())
         self.__get_plots__()
+        
+        #save the model
+        torch.save(self.model.state_dict(), r"D:\AnclaModels\6_6_2024_FullSequence_BU.pth")
 
     def __get_plots__(self) -> None:
         plt.plot(self.trainin_losses, label='Training Loss')

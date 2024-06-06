@@ -820,7 +820,7 @@ public class TestDbOperations
     }
 
     [Test]
-    public void TestSaveAsCSVSubset_WithoutJURKATDB()
+    public void TestSaveAsCSVSubset_NoModsAndPhospho()
     {
         var psmFilePath = new List<string>()
         {
@@ -836,7 +836,7 @@ public class TestDbOperations
             @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
         };
 
-        string dbPath = @"D:\JurkatSubsetMatches_BaseSequences_wo_jurkat.db";
+        string dbPath = @"D:\DB_FullSequenceDistinct_noJurkat.db";
         bool anyError = false;
 
         DbOperations.DbConnectionInit(dbPath, out anyError);
@@ -849,36 +849,6 @@ public class TestDbOperations
         using (var context = new PsmContext(optionsBuilder.Options))
         {
             DbOperations.AnalizeAndAddPsmsBulk(context, psms);
-        }
-
-        string jurkatPath = @"D:\OtherPeptideResultsForTraining\trypsin_jurkat_subset.psmtsv";
-
-        var psmsJurkat = PsmService.GetPsms(new() { jurkatPath });
-
-        //group by file name
-        var setsFromJurkat = psmsJurkat.GroupBy(x => x.FileName);
-
-        using (var context = new PsmContext(optionsBuilder.Options))
-        {
-            foreach (var file in setsFromJurkat)
-            {
-                //Get files psms 
-                var filePsms = file.ToList();
-
-                // Get the linear model
-                var overlapsFromDatabase = DbOperations.GetFullSequencesOverlaps(context, filePsms);
-
-                // Fit the linear model
-                var linearModel = DbOperations.FitLinearModelToData(overlapsFromDatabase);
-
-                // Transform the experimental retention times
-                var transformedExperimental = DbOperations.TransformExperimentalRetentionTimes(
-                                       overlapsFromDatabase,
-                                                          linearModel);
-
-                // Save data as CSV
-                DbOperations.SaveAsCSV(transformedExperimental, @"D:\no_jurkat_transformedData_" + file.Key + ".csv");
-            }
         }
     }
 }

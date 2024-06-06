@@ -10,19 +10,25 @@ from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
 if __name__ == "__main__":    
-    model = BottomUpResNet(num_blocks = 3)
+    model = BottomUpResNet(num_blocks = 15)
 
-    training_data = pd.read_csv(r"D:\OtherPeptideResultsForTraining\NO_JURKAT_fractionOverlapJurkatFromMannTryptic.csv")
+    vocab = pd.read_csv(r"D:\OtherPeptideResultsForTraining\vocab.csv")
 
-    X = training_data["BaseSequence"].tolist()
-    y = training_data["ScanRetentionTime"].tolist()
+    # make vocab a dictionary
+    vocab = dict(zip(vocab["Id"], vocab["Token"]))
+    #swap keys and values
+    vocab = {v: k for k, v in vocab.items()}
 
-    training_features = Featurizer.featurize_all(X)
+    training_data = pd.read_csv(r"D:\DB_FullSequencesDistinct_noJurkat.csv")
+
+    # X = training_data["FullSequence"].tolist()
+    # y = training_data["ScanRetentionTime"].tolist()
+
+    X, y = Featurizer.featurize_all_full_sequences(training_data, vocab, 100)
 
     y = Featurizer.normalize_targets(y)
-
     # Divide training features into train and test
-    X_train, X_validate, y_train, y_validate = train_test_split(training_features, y, test_size=0.2, shuffle=True, random_state=42)
+    X_train, X_validate, y_train, y_validate = train_test_split(X, y, test_size=0.2, shuffle=True, random_state=42)
     X_validate, X_test, y_validate, y_test = train_test_split(X_validate, y_validate, test_size=0.5, shuffle=True, random_state=42)
     
     # Create data sets
@@ -32,12 +38,13 @@ if __name__ == "__main__":
 
     # Create data loaders
     batch_size = 32
+
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
     criterion = torch.nn.MSELoss()
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay= 0.0001)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.00001, momentum=0.9, nesterov = True, weight_decay= 0.0001)
 
     # Explore the landscape 
     explorer = LandscapeExplorer(model = model, criterion = criterion, optimizer = optimizer,
@@ -46,5 +53,5 @@ if __name__ == "__main__":
                                     testing_dataset = test_dataset,
                                     num_points = 10, range_ = 1)
     
-    explorer.train(epochs = 5)
+    explorer.train(epochs = 100)
     explorer.test()
