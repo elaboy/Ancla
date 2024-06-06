@@ -560,8 +560,7 @@ class BottomUpResNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self.make_layer(32, num_blocks)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.ltsm = nn.LSTM(32, 16, 1, batch_first=True)
-        self.fc = nn.Linear(16, 1)
+        self.fc = nn.Linear(32, 1)
 
         self.double()
 
@@ -585,8 +584,7 @@ class BottomUpResNet(nn.Module):
         x = self.relu(x)
         x = self.layer1(x)
         x = self.avgpool(x)
-        x = x.view(1, 32, 32)
-        x, _ = self.ltsm(x)
+        x = x.view(x.size(0), -1)
         x = self.relu(x)
         x = self.fc(x)
         return x
@@ -634,7 +632,7 @@ class LandscapeExplorer():
     def __train_step__(self, X: torch.Tensor, y: torch.Tensor) -> float:
         self.model.train()
         self.optimizer.zero_grad()
-        outputs = self.model(X.to(self.device))
+        outputs = self.model(X).to(self.device)
         loss = self.criterion(outputs.reshape(-1), y.reshape(-1).to(self.device))
         loss.backward()
         self.optimizer.step()
@@ -697,13 +695,6 @@ class LandscapeExplorer():
                 total_loss += loss.item()
             average_loss = total_loss / len(self.validation_dataloader)
             self.validation_losses.append(average_loss)
-    
-    # def test(self) -> torch.Tensor:
-    #     self.model.eval()
-    #     with torch.no_grad():
-    #         outputs = self.model(self.testing_dataset[0])
-    #         loss = self.criterion(outputs.reshape(-1), self.testing_dataset[1].reshape(-1))
-    #         return loss
 
     def train(self, epochs: int) -> None:
         self.__prepare_testing_dataset__()
@@ -726,7 +717,7 @@ class LandscapeExplorer():
         plt.ylabel('Loss')
         plt.legend()
         plt.tight_layout()
-        plt.show()
+        plt.savefig('D:/AnclaModels/losses.png')
 
     def __inform_progress__(self) -> None:
         print(f"Training Loss : {self.trainin_losses[-1]}, Validation Loss : {self.validation_losses[-1]}")

@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     criterion = torch.nn.MSELoss()
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay= 0.0001)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
 
     # Explore the landscape 
     explorer = LandscapeExplorer(model = model, criterion = criterion, optimizer = optimizer,
@@ -46,5 +46,7 @@ if __name__ == "__main__":
                                     testing_dataset = test_dataset,
                                     num_points = 10, range_ = 1)
     
-    explorer.train(epochs = 5)
+    explorer.train(epochs = 300)
     explorer.test()
+    # save the model
+    explorer.model.save_model("D:/AnclaModels/AnclaModel_3ResNet.pt")
