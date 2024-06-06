@@ -735,7 +735,7 @@ class LandscapeExplorer():
     def __train_step__(self, X: torch.Tensor, y: torch.Tensor) -> float:
         self.model.train()
         self.optimizer.zero_grad()
-        outputs = self.model(X.to(self.device))
+        outputs = self.model(X).to(self.device)
         loss = self.criterion(outputs.reshape(-1), y.reshape(-1).to(self.device))
         loss.backward()
         self.optimizer.step()
@@ -865,7 +865,7 @@ class LandscapeExplorer():
         plt.ylabel('Loss')
         plt.legend()
         plt.tight_layout()
-        plt.show()
+        plt.savefig('D:/AnclaModels/losses.png')
 
     def __inform_progress__(self) -> None:
         print(f"Training Loss : {self.trainin_losses[-1]}, Validation Loss : {self.validation_losses[-1]}")
