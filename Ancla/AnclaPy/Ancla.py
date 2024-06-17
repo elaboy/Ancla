@@ -117,19 +117,11 @@ class Featurizer(object):
     
     @staticmethod
     def normalize_targets(targets: list) -> NDArray:
-        from sklearn.preprocessing import StandardScaler
+        normalized_targets = np.array(targets).reshape(-1)
+        normalized_targets = (normalized_targets - min(normalized_targets)) / (max(normalized_targets) - min(normalized_targets))
         
-        #create the scaler
-        scaler = StandardScaler()
-        
-        # make it a (targets_length, 1)
-        targets = np.array(targets).reshape(-1, 1)
-
-        #fit the scaler and transform the columns Database, Experimental and PostTransformation
-        targets = scaler.fit_transform(targets)
-        
-        return targets
-        
+        return normalized_targets
+    
     @staticmethod
     def min_max_scaler(data: NDArray) -> NDArray:
         # Assuming 'data' is your 3D array
@@ -639,6 +631,15 @@ class ResidualBlock(nn.Module):
 
         self.double()
 
+        #initialize weights
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                # nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
         out = self.conv1(x)
@@ -655,9 +656,9 @@ class ResidualBlock(nn.Module):
 class BottomUpResNet(nn.Module):
     def __init__(self, num_blocks: int) -> None:
         super(BottomUpResNet, self).__init__()
-        self.in_channels = 4
-        self.conv1 = nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(4)
+        self.in_channels = 16
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(16)
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self.make_layer(32, num_blocks)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
@@ -665,6 +666,18 @@ class BottomUpResNet(nn.Module):
         self.dropout = nn.Dropout(0.5)
 
         self.double()
+
+        #initialize weights
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                # nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                nn.init.constant_(m.bias, 0)
 
     def make_layer(self, out_channels: int, num_blocks: int, stride: int = 1) -> nn.Module:
         downsample = None
@@ -843,11 +856,14 @@ class LandscapeExplorer():
 
     def train(self, epochs: int) -> None:
         self.__prepare_testing_dataset__()
+        # reduce the learning rate if plateau is reached
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=5)
         for epoch in tqdm(range(epochs), desc='Epoch '):
             epochs_loss = []
             for inputs, targets in tqdm(self.training_dataloader, total = len(self.training_dataloader), desc='Training'):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
                 epochs_loss.append(self.__train_step__(inputs, targets))
+            scheduler.step(np.mean(epochs_loss))
             self.trainin_losses.append(np.mean(epochs_loss))
             self.__validation__()
             self.__inform_progress__()

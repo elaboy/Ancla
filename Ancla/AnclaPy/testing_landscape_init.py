@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
 if __name__ == "__main__":    
-    model = BottomUpResNet(num_blocks = 15)
+    model = BottomUpResNet(num_blocks = 25)
 
     vocab = pd.read_csv(r"D:\OtherPeptideResultsForTraining\vocab.csv")
 
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     criterion = torch.nn.MSELoss()
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.00001, momentum=0.9, nesterov = True, weight_decay= 0.0001)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.1e-3)
 
     # Explore the landscape 
     explorer = LandscapeExplorer(model = model, criterion = criterion, optimizer = optimizer,
@@ -53,5 +53,5 @@ if __name__ == "__main__":
                                     testing_dataset = test_dataset,
                                     num_points = 10, range_ = 1)
     
-    explorer.train(epochs = 100)
+    explorer.train(epochs = 300)
     explorer.test()
