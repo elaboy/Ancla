@@ -103,7 +103,21 @@ class Featurizer(object):
             ])
 
         return final_array
-    
+
+    @staticmethod
+    def pca_features(data: list) -> NDArray:
+        from sklearn.decomposition import PCA
+
+        transformed_data = []
+
+        pca = PCA(n_components=1)
+
+        for i, peptide in enumerate(data):
+            pca.fit_transform(peptide)
+            transformed_data.append(pca.components_)
+        
+        return transformed_data, pca
+     
     @staticmethod
     def featurize_all(data: list) -> list:
         #run with tqdm for a progress bar, in parallel
@@ -533,24 +547,24 @@ class BuModel(nn.Module):
     def __init__(self) -> torch.nn.Module:
         super(BuModel, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3, padding=1, bias = False)
-        self.bn1 = nn.BatchNorm2d(4)
+        self.conv1 = nn.Conv1d(in_channels=1, out_channels=4, kernel_size=3, padding=1, bias = False)
+        self.bn1 = nn.BatchNorm1d(4)
         # self.pool1 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv2 = nn.Conv2d(in_channels=4, out_channels=8, kernel_size=3, padding=1, bias = False)
-        self.bn2 = nn.BatchNorm2d(8)
+        self.conv2 = nn.Conv1d(in_channels=4, out_channels=8, kernel_size=3, padding=1, bias = False)
+        self.bn2 = nn.BatchNorm1d(8)
         # self.pool2 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv3 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, padding=1, bias = False)
-        self.bn3 = nn.BatchNorm2d(16)
+        self.conv3 = nn.Conv1d(in_channels=8, out_channels=16, kernel_size=3, padding=1, bias = False)
+        self.bn3 = nn.BatchNorm1d(16)
         # self.pool3 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         
-        self.conv4 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
-        self.bn4 = nn.BatchNorm2d(32)
+        self.conv4 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, padding=1, bias = False)
+        self.bn4 = nn.BatchNorm1d(32)
         # self.pool4 = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
 
-        self.conv5 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1, bias = False)
-        self.bn5 = nn.BatchNorm2d(64)
+        self.conv5 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, padding=1, bias = False)
+        self.bn5 = nn.BatchNorm1d(64)
         
         # Calculate the size of the flattened features after the last pooling layer
         self._to_linear = None
@@ -584,7 +598,7 @@ class BuModel(nn.Module):
 
     def _get_to_linear_dim(self) -> None:
         with torch.no_grad():
-            x = torch.zeros(1, 1, 6, 100)
+            x = torch.zeros(1, 1, 100)
             x = F.relu(self.bn1(self.conv1(x)))
             x = F.relu(self.bn2(self.conv2(x)))
             x = F.relu(self.bn3(self.conv3(x)))
@@ -622,11 +636,11 @@ class BuModel(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, stride: int = 1, downsample: nn.Module = None) -> None:
         super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm1d(out_channels)
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm1d(out_channels)
         self.downsample = downsample
 
         self.double()
@@ -657,22 +671,22 @@ class BottomUpResNet(nn.Module):
     def __init__(self, num_blocks: int) -> None:
         super(BottomUpResNet, self).__init__()
         self.in_channels = 16
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.conv1 = nn.Conv1d(1, 16, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm1d(16)
         self.relu = nn.ReLU(inplace=True)
-        self.layer1 = self.make_layer(32, num_blocks)
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(32, 1)
+        self.layer1 = self.make_layer(1, num_blocks)
+        self.avgpool = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Linear(1, 1)
         self.dropout = nn.Dropout(0.5)
 
         self.double()
 
         #initialize weights
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, nn.Conv1d):
                 nn.init.kaiming_normal_(m.weight)
                 # nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
+            elif isinstance(m, nn.BatchNorm1d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
@@ -683,8 +697,8 @@ class BottomUpResNet(nn.Module):
         downsample = None
         if stride != 1 or self.in_channels != out_channels:
             downsample = nn.Sequential(
-                nn.Conv2d(self.in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False),
-                nn.BatchNorm2d(out_channels)
+                nn.Conv1d(self.in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False),
+                nn.BatchNorm1d(out_channels)
             )
         layers = []
         layers.append(ResidualBlock(self.in_channels, out_channels, stride, downsample))
@@ -694,6 +708,7 @@ class BottomUpResNet(nn.Module):
         return nn.Sequential(*layers)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.reshape(x.shape[0], 1, 100)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -716,7 +731,7 @@ class RTDataset(Dataset):
 
     def __getitem__(self, idx) -> tuple:
 
-        return torch.from_numpy(np.array(self.X[idx], dtype = np.float64)).unsqueeze_(0), self.y[idx]
+        return torch.from_numpy(np.array(self.X[idx], dtype = np.float64).squeeze()), self.y[idx]
     
 class LandscapeExplorer():
     '''
@@ -797,7 +812,7 @@ class LandscapeExplorer():
         return (alpha, beta, average_loss)
 
     def __prepare_testing_dataset__(self):
-            self.testing_dataset = (self.testing_dataset[:][0].unsqueeze(1).reshape(self.testing_dataset[:][0].shape[1], 1, 2, 100).to(self.device),
+            self.testing_dataset = (self.testing_dataset[:][0].to(self.device),
                                      torch.tensor(self.testing_dataset[:][1]).to(self.device))
 
     def __validation__(self) -> None:

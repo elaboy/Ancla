@@ -10,7 +10,8 @@ from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
 if __name__ == "__main__":    
-    model = BottomUpResNet(num_blocks = 25)
+    model = BottomUpResNet(num_blocks = 200)
+    # model = torch.nn.Sequential(torch.nn.Linear(100, 1, dtype=torch.double))
 
     vocab = pd.read_csv(r"D:\OtherPeptideResultsForTraining\vocab.csv")
 
@@ -26,7 +27,10 @@ if __name__ == "__main__":
 
     X, y = Featurizer.featurize_all_full_sequences(training_data, vocab, 100)
 
+    X = Featurizer.pca_features(X)[:][0]
+    
     y = Featurizer.normalize_targets(y)
+
     # Divide training features into train and test
     X_train, X_validate, y_train, y_validate = train_test_split(X, y, test_size=0.2, shuffle=True, random_state=42)
     X_validate, X_test, y_validate, y_test = train_test_split(X_validate, y_validate, test_size=0.5, shuffle=True, random_state=42)
@@ -36,6 +40,7 @@ if __name__ == "__main__":
     validation_dataset = RTDataset(X_validate, y_validate)
     test_dataset = RTDataset(X_test, y_test)
 
+    
     # Create data loaders
     batch_size = 32
 
@@ -44,7 +49,7 @@ if __name__ == "__main__":
 
     criterion = torch.nn.MSELoss()
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.1e-3)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=0.0001, nesterov=True)
 
     # Explore the landscape 
     explorer = LandscapeExplorer(model = model, criterion = criterion, optimizer = optimizer,
@@ -53,5 +58,5 @@ if __name__ == "__main__":
                                     testing_dataset = test_dataset,
                                     num_points = 10, range_ = 1)
     
-    explorer.train(epochs = 300)
+    explorer.train(epochs = 10)
     explorer.test()
