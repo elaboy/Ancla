@@ -42,6 +42,9 @@ aa_dict = {
 class Featurizer(object):
     @staticmethod
     def featurize(data: str) -> NDArray:
+        # caps locks on the data
+        data = data.upper()
+
         # the array will be of shape (peptide, residues, features)
 
         # split the string into a list of characters
@@ -93,7 +96,7 @@ class Featurizer(object):
         # add the features into the final array, vstacked
         final_array = np.vstack(
             [np.array(peptides_as_dict_index), 
-            #  np.array(hydrophobicity),
+             np.array(hydrophobicity),
              np.array(z1_scale),
              np.array(z2_scale),
              np.array(z3_scale),
@@ -645,14 +648,14 @@ class ResidualBlock(nn.Module):
 
         self.double()
 
-        #initialize weights
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
-                # nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+        # #initialize weights
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv2d):
+        #         nn.init.kaiming_normal_(m.weight)
+        #         # nn.init.constant_(m.bias, 0)
+        #     elif isinstance(m, nn.BatchNorm2d):
+        #         nn.init.constant_(m.weight, 1)
+        #         nn.init.constant_(m.bias, 0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
@@ -674,7 +677,7 @@ class BottomUpResNet(nn.Module):
         self.conv1 = nn.Conv1d(1, 16, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm1d(16)
         self.relu = nn.ReLU(inplace=True)
-        self.layer1 = self.make_layer(1, num_blocks)
+        self.layer1 = self.make_layer(32, num_blocks)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(1, 1)
         self.dropout = nn.Dropout(0.5)
@@ -878,7 +881,7 @@ class LandscapeExplorer():
             for inputs, targets in tqdm(self.training_dataloader, total = len(self.training_dataloader), desc='Training'):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
                 epochs_loss.append(self.__train_step__(inputs, targets))
-            scheduler.step(np.mean(epochs_loss))
+            # scheduler.step(np.mean(epochs_loss))
             self.trainin_losses.append(np.mean(epochs_loss))
             self.__validation__()
             self.__inform_progress__()

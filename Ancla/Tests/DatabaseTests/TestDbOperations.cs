@@ -829,14 +829,14 @@ public class TestDbOperations
             @"D:\MannPeptideResults/HEK293_AllPSMs.psmtsv",
             @"D:\MannPeptideResults/Hela_AllPSMs.psmtsv",
             @"D:\MannPeptideResults/HepG2AllPSMs.psmtsv",
-            //@"D:\MannPeptideResults/Jurkat_AllPSMs.psmtsv",
+            @"D:\MannPeptideResults/Jurkat_AllPSMs.psmtsv",
             @"D:\MannPeptideResults/LanCap_AllPSMs.psmtsv",
             @"D:\MannPeptideResults/MCF7_AllPSMs.psmtsv",
             @"D:\MannPeptideResults/RKO_AllPSMs.psmtsv",
             @"D:\MannPeptideResults/U2OS_AllPSMs.psmtsv",
         };
 
-        string dbPath = @"D:\DB_FullSequenceDistinct_noJurkat.db";
+        string dbPath = @"D:\justPhospho.db";
         bool anyError = false;
 
         DbOperations.DbConnectionInit(dbPath, out anyError);
@@ -845,6 +845,9 @@ public class TestDbOperations
 
         var optionsBuilder = new DbContextOptionsBuilder<PsmContext>();
         optionsBuilder.UseSqlite(@"Data Source = " + dbPath);
+
+        // remove all the psms that are not phospho
+        psms = psms.Where(p => p.FullSequence.Contains("Phospho")).ToList();
 
         using (var context = new PsmContext(optionsBuilder.Options))
         {
