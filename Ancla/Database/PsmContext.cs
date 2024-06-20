@@ -16,6 +16,11 @@ public class PsmContext : DbContext
 
     }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseSqlite("Data Source= D:anchor.db");
+    }
+
     // protected override void OnConfiguring(DbContextOptionsBuilder options)
     //     => options.UseSqlite();
 
