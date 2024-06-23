@@ -7,7 +7,6 @@ public class PsmContext : DbContext
 {
     public PsmContext()
     {
-        
     }
 
     public PsmContext(DbContextOptions<PsmContext> options)
@@ -18,7 +17,7 @@ public class PsmContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseSqlite("Data Source= D:anchor.db");
+        optionsBuilder.UseSqlite("Data Source = D:anchor.db");
     }
 
     // protected override void OnConfiguring(DbContextOptionsBuilder options)
@@ -35,4 +34,9 @@ public class PsmContext : DbContext
     //}
 
     public DbSet<PSM> PSMs { get; set; }
+
+    public DbSet<PSM> GetPSMs()
+    {
+        return PSMs;
+    }
 }

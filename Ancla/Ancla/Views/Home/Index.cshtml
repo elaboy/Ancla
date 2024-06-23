@@ -2,7 +2,47 @@
     ViewData["Title"] = "Home Page";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<body>
+    <div class="container">
+        <div class="filter-section">
+            <h2>Filter Options</h2>
+            <!-- Add your filter options here -->
+            <div class="filter-options">
+                <div class="Modifications">
+                    <form method="post">
+                        <label><input type="checkbox" name="filterOptions" value="option1" /> Option 1</label><br />
+                        <label><input type="checkbox" name="filterOptions" value="option2" /> Option 2</label><br />
+                        <label><input type="checkbox" name="filterOptions" value="option3" /> Option 3</label><br />
+                        <button type="submit">Apply Filter</button>
+                    </form>
+                </div>
+
+                <div class="filter-option">
+                    <label for="filter">Filter:</label>
+                    <input type="text" id="filter" name="filter" />
+                </div>
+
+                <div class="filter-option">
+                    <label for="filter">Filter:</label>
+                    <input type="text" id="filter" name="filter" /></div>
+            
+            </div>
+        </div>
+        <div class="list-section">
+            <h2>Database List</h2>
+            <!-- Add your database list here -->
+            <table>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td>@item.FullSequence</td>
+                    </tr>
+                }
+            </table>
+        </div>
+        <div class="stats-section">
+            <h2>Statistics</h2>
+            <!-- Add your statistics here -->
+        </div>
+    </div>
+</body>

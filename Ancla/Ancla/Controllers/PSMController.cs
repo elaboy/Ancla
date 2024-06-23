@@ -1,4 +1,4 @@
-﻿using Ancla.Models;
+﻿using AnchorLib;
 using Database;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,12 +7,22 @@ namespace Ancla.Controllers
 {
     public class PSMController : Controller
     {
-        private readonly PsmContext _context;
+        private readonly DbContext _context;
+        public IEnumerable<Models.PSM> PsmCollection { get; set; }
 
-        public PSMController(PsmContext context)
+        public PSMController(DbContext context)
         {
             _context = context;
+            PsmCollection = _context.PSMs;
         }
+
+        // POST: Submit PSMs Bulk
+        //[HttpPost]
+        //public IActionResult UploadBulkPsms([FromBody] IEnumerable<PSM> psmCollection)
+        //{
+        //    Transactions.PrepareCandidatesAndCommit(_context, psmCollection.ToList());
+        //    return Ok();
+        //}
 
         // GET: PSM
         public async Task<IActionResult> Index()
@@ -77,7 +87,7 @@ namespace Ancla.Controllers
                         ProteinName = psm.ProteinName,
                         QValue = psm.QValue,
                         Score = psm.Score,
-                        ScanNumber = psm.PrecursorScanNum,
+                        //ScanNumber = psm.PrecursorScanNum,
                         ScanRetentionTime = psm.RetentionTime.Value,
                         StartAndEndResidueInProtein = psm.StartAndEndResiduesInProtein,
                         TotalIonCurrent = psm.TotalIonCurrent.Value,

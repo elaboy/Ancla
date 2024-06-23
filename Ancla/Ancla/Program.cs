@@ -1,5 +1,6 @@
 using Database;
 using Microsoft.EntityFrameworkCore;
+using DbContext = Ancla.DbContext;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,8 +8,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 
 // dependency injection
-builder.Services.AddDbContext<PsmContext>(options =>
-       options.UseSqlite());
+builder.Services.AddDbContext<DbContext>(options =>
+       options.UseSqlite("Data Source = D:anchor.db"));
+
+//ensure database is created
+var dbConnection = new DbContext();
+dbConnection.Database.EnsureCreated();
 
 var app = builder.Build();
 
