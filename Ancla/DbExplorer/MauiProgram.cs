@@ -1,4 +1,6 @@
-﻿using Database;
+﻿using Ancla;
+using Database;
+using Microcharts.Maui;
 using Microsoft.Extensions.Logging;
 
 namespace DbExplorer
@@ -10,16 +12,17 @@ namespace DbExplorer
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
+                .UseMicrocharts()
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
-            builder.Services.AddDbContext<PsmContext>();
+            builder.Services.AddDbContext<DbContext>();
             builder.Services.AddTransient<MainPage>();
 
-            var dbContext = new PsmContext();
+            var dbContext = new DbContext();
             dbContext.Database.EnsureCreated();
             dbContext.Dispose();
 

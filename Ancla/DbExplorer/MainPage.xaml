@@ -1,40 +1,58 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:micro="clr-namespace:Microcharts.Maui;assembly=Microcharts.Maui"
              x:Class="DbExplorer.MainPage"
              xmlns:models="clr-namespace:Ancla.Models;assembly=Ancla"
+             xmlns:microcharts="clr-namespace:Microcharts;assembly=Microcharts.Maui"
+             xmlns:signing="clr-namespace:NuGet.Packaging.Signing;assembly=NuGet.Packaging"
              x:DataType="models:PSM">
 
-    <Grid ColumnDefinitions="300,1200,*">
+    <Grid ColumnDefinitions="*, *">
         <!-- Define three rows of equal height for the vertical sections -->
 
         <!-- First section content -->
         <Frame Grid.Column="0">
            <StackLayout Spacing="10">
                 <Label Text="Modifications" HorizontalOptions="Center" VerticalOptions="Center"/>
-                <Button Text="Phosphorylation" Clicked="Button_OnClicked" BackgroundColor="LightBlue"/>
-                <Button Text="Carbamidomethylation" Clicked="OnModificationClick" BackgroundColor="LightBlue"></Button>
-                <Button Text="Acetylation" Clicked="OnModificationClick" BackgroundColor="LightBlue"></Button>
+                <!--<Button Text="Phosphorylation" Clicked="Button_OnClicked" BackgroundColor="LightBlue"/>-->
+                <!--<Button Text="Carbamidomethylation" Clicked="OnModificationClick" BackgroundColor="LightBlue"></Button>
+                <Button Text="Acetylation" Clicked="OnModificationClick" BackgroundColor="LightBlue"></Button>-->
             </StackLayout>
         </Frame>
 
         <!-- Second section content -->
         <Frame Grid.Column="1">
+            <micro:ChartView>
+                <!-- Example of a bar chart -->
+                <micro:ChartView.Chart>
+                    < microcharts:PieChart>
+
+                        <microcharts:PieChart.Entries>
+                            <microcharts:Entry Value="200" Color="#FF1493" Label="Phosphorylation"/>
+                            <microcharts:Entry Value="400" Color="#FF4500" Label="Carbamidomethylation"/>
+                            <Entry Value="300" Color="#FFD700" Label="Acetylation"/>
+                        </microcharts:PieChart.Entries>
+                    </microcharts:PieChart>
+                </micro:ChartView.Chart>
+            </micro:ChartView>
             <!-- Displays the database table, which will be a mock table as a placeholder -->
-            <ListView x:Name="PSMs">
+            <!--<ListView x:Name="PSMs">
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <TextCell Text="{Binding FullSequence}"/>
                     </DataTemplate>
                 </ListView.ItemTemplate>
-            </ListView>
+            </ListView>-->
+
+            <!-- Visualization -->
         </Frame>
 
-        <!-- Third section content -->
+        <!-- Third section content --><!--
         <Frame Grid.Column="2">
-            <!--<Label Text="Tools" HorizontalOptions="Center" VerticalOptions="Center"/>-->
-            <Label Text="Modification Distribution" HorizontalOptions="Center" VerticalOptions="Center"/>
-        </Frame>
+            --><!--<Label Text="Tools" HorizontalOptions="Center" VerticalOptions="Center"/>--><!--
+            <Label Text="Modification Distribution" HorizontalOptions="Center" VerticalOptions="Center"/>-->
+        <!--</Frame>-->
     </Grid>
 
 </ContentPage>

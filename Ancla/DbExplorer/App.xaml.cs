@@ -1,4 +1,5 @@
-﻿using Database;
+﻿using Ancla;
+using Database;
 
 namespace DbExplorer
 {
@@ -8,7 +9,7 @@ namespace DbExplorer
         {
             InitializeComponent();
 
-            var dbContext = new PsmContext();
+            var dbContext = new DbContext();
 
             MainPage = new DbExplorer.MainPage(dbContext);
         }
