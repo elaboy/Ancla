@@ -29,9 +29,13 @@
                     < microcharts:PieChart>
 
                         <microcharts:PieChart.Entries>
-                            <microcharts:Entry Value="200" Color="#FF1493" Label="Phosphorylation"/>
-                            <microcharts:Entry Value="400" Color="#FF4500" Label="Carbamidomethylation"/>
-                            <Entry Value="300" Color="#FFD700" Label="Acetylation"/>
+                            <x:Array>
+                                                                <microcharts:Entry Value="200" Label="U" Color="#FF1493" />
+                                <microcharts:Entry Value="400" Label="C" Color="#FF4500" />
+                                <microcharts:Entry Value="300" Label="A" Color="#FFD700" />
+                                <microcharts:Entry Value="250" Label="G" Color="#FF8C00" />
+                                <microcharts:Entry Value="100" Label="T" Color="#FF0000" />
+                            </x:Array>
                         </microcharts:PieChart.Entries>
                     </microcharts:PieChart>
                 </micro:ChartView.Chart>

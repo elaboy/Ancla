@@ -1,7 +1,9 @@
 ﻿using AnchorLib;
 using Database;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.EntityFrameworkCore;
+using Plotly.NET;
 
 namespace Ancla.Controllers
 {
@@ -14,6 +16,40 @@ namespace Ancla.Controllers
         {
             _context = context;
             PsmCollection = _context.PSMs;
+        }
+
+        public List<int> GetDistributionOfMods()
+        {
+            int phospho = 0;
+            int acetyl = 0;
+            int methyl = 0;
+            int dimethyl = 0;
+
+            //count the mods in the PsmCollection
+            foreach (var psm in PsmCollection)
+            {
+                if (psm.FullSequence.Contains("Phospho"))
+                {
+                    phospho++;
+                }
+
+                if (psm.FullSequence.Contains("Acetyl"))
+                {
+                    acetyl++;
+                }
+
+                if (psm.FullSequence.Contains("Methyl"))
+                {
+                    methyl++;
+                }
+
+                if (psm.FullSequence.Contains("Dimethyl"))
+                {
+                    dimethyl++;
+                }
+            }
+
+            return new List<int>() { phospho, acetyl, methyl, dimethyl };
         }
 
         // POST: Submit PSMs Bulk

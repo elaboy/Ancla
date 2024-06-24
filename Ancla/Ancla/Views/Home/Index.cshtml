@@ -1,4 +1,6 @@
-﻿@{
+﻿@using Plotly.NET
+@using Ancla.Controllers
+@{
     ViewData["Title"] = "Home Page";
 }
 
@@ -28,7 +30,7 @@
             
             </div>
         </div>
-        <div class="list-section">
+        @* <div class="list-section">
             <h2>Database List</h2>
             <!-- Add your database list here -->
             <table>
@@ -39,10 +41,13 @@
                     </tr>
                 }
             </table>
-        </div>
+        </div> *@
         <div class="stats-section">
-            <h2>Statistics</h2>
+            <h2>Stats</h2>
             <!-- Add your statistics here -->
+            @{
+                var data =
+            }
         </div>
     </div>
 </body>
