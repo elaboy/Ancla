@@ -18,24 +18,41 @@ class Calibrator():
         self.peptides_dictionary = {}
         self.linear_regression_model = LinearRegression()
 
-    def run(self) -> None:
-        for i, file in tqdm(self.follower_files, desc="Calibrating files"):
-            self.__calibrate(file)
-    
-    def __calibrate(self, follower_file: pd.DataFrame) -> None:
+        self.prepare_data()
+
+    def prepare_data(self) -> None:
+        # get the raw file names
+        self.__get_raw_file_names()
         # set the master file and the follower files
         self.__set_master_follower()
-        # get the median for repeated retention times for both the master and follower file
-        self.master_file = self.__calculate_median_of_repeated_retention_times(self.master_file)
-        follower_file = self.__calculate_median_of_repeated_retention_times(follower_file)
+
+
+    def run(self) -> None:
+        for file in tqdm(self.follower_files, desc="Calibrating files"):
+            self.__calibrate(file)
+    
+    def show_properties(self) -> None:
+        print("Path list: ", self.path_list)
+        print("Master file: ", self.master_file)
+        print("Follower files: ", self.follower_files)
+        print("Raw file names: ", len(self.raw_file_names))
+        print("Dataframe dictionary: ", len(self.dataframe_dictionary))
+        print("Calibrated files: ", self.calibrated_files)
+        print("Peptides dictionary: ", self.peptides_dictionary)
+        print("Linear regression model: ", self.linear_regression_model)
+
+    def __calibrate(self, follower_file: pd.DataFrame) -> None:
+        # # get the median for repeated retention times for both the master and follower file
+        # self.master_file = self.__calculate_median_of_repeated_retention_times(self.master_file)
+        # follower_file = self.__calculate_median_of_repeated_retention_times(follower_file)
         # filter the files and get anchors
         anchors = self.get_anchors__inner_join(self.master_file, follower_file)
         # train model
-        self.__fit_model(anchors['Scan Retention Time_x'].to_numpy().reshape(-1, 1), anchors['Scan Retention Time_y'].to_numpy().reshape(-1, 1))
+        self.__fit_model(anchors['Scan Retention Time_y'].to_numpy().reshape(-1, 1), anchors['Scan Retention Time_x'].to_numpy().reshape(-1, 1))
         # Merge both files and get the transformed retention times for the follower file
         transformed_dataframe = self.__tranform_retention_times(follower_file)
-        # Update the dataframe dictionary with the transformed retention times
-        self.dataframe_dictionary[follower_file['File Name'].unique()[0]] = follower_file
+        # update the peptides dictionary
+        self.__update_peptides_dictionary(transformed_dataframe)
     
     def __tranform_retention_times(self, retention_times: pd.DataFrame) -> pd.DataFrame:
         retention_times = self.__get_anchors_outer_join(self.master_file, retention_times)
@@ -46,7 +63,7 @@ class Calibrator():
             if retention_times.loc[i, ['Scan Retention Time_y']].isnull().any() == False and retention_times.loc[i, ['Scan Retention Time_x']].isna().any() == False:
                 X = retention_times.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
                 y = self.linear_regression_model.predict(X)
-                retention_times.loc[i, ['Transformed Retention Time']] = y.reshape(-1).astype(float)
+                retention_times.loc[i, ['Transformed Retention Time']] = y.reshape(-1, 1).astype(float)
             
             elif retention_times.loc[i, ['Scan Retention Time_y']].isnull().any() == False and retention_times.loc[i, ['Scan Retention Time_x']].isna().any() == True:
                 X = retention_times.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
@@ -54,7 +71,7 @@ class Calibrator():
                 retention_times.loc[i, ['Transformed Retention Time']] = y.reshape(-1).astype(float)
             
             else:
-                retention_times.loc[i, ['Transformed Retention Time']] = retention_times.loc[i, ["Scan Retention Time_x"]].to_numpy().reshape(-1).astype(float)
+                retention_times.loc[i, ['Transformed Retention Time']] = retention_times.loc[i, ["Scan Retention Time_x"]].to_numpy().reshape(-1, 1).astype(float)
         
         return retention_times
 
@@ -107,28 +124,28 @@ class Calibrator():
         return anchors
     
     def __set_master_follower(self) -> None:
-        self.master_file = self.df_list[0]
-        self.follower_files = self.df_list[1:]
-
-    def __set_leader_followers(self) -> None:
-        self.df_list = [pd.read_csv(path) for path in self.path_list]
+        # get the master file which will be a random dataframe from the raw file names dictionary, master will be removed from the dictionary after being set
+        self.master_file = self.raw_file_names.popitem()[1]
+        # set the follower files
+        self.follower_files = list(self.raw_file_names.values())
 
     def __get_raw_file_names(self) -> None:
-        for i, df in enumerate(self.df_list):
-            self.raw_file_names[i] = df['File Name'].unique()
-
-    def __make_dataframes(self) -> None:
-        for i, df in enumerate(self.df_list):
-            for raw_file in self.raw_file_names[i]:
-                self.dataframe_dictionary[raw_file] = df[df['File Name'] == raw_file]
+        # get a list of each different file name in the df_list
+        for i, df in enumerate(self.path_list):
+            loaded_dataframe = pd.read_csv(df, sep='\t')
+            # get a list of the file names
+            raw_file_name = loaded_dataframe['File Name'].unique()
+            for file in raw_file_name:
+                #get a dataframe where file name is same as file 
+                self.raw_file_names[file] = loaded_dataframe[loaded_dataframe['File Name'] == file]
 
     def __filter_file(self, df: pd.DataFrame) -> pd.DataFrame:
         # fiter by q_value
-        df = df[df['q_value'] < 0.01]
+        df = df[df['QValue'] < 0.01]
         # filter by PEP
         df = df[df['PEP'] < 0.5]
         # filter by ambiguity
-        df = df[df['Ambiguity'] == "1"]
+        df = df[df['Ambiguity Level'] == "1"]
         #filter by "Decoy/Contaminant/Target"
         df = df[df['Decoy/Contaminant/Target'] == PsmType.TARGET.value]
         return df
