@@ -7,7 +7,6 @@ from tqdm import tqdm
 from enum import Enum
 from sklearn.base import clone #lets me clone the model parameters, good for tuning parameters and data preprocessing trials
 from logger import PeptideLogger
-from multiprocessing import Pool
 
 class Calibrator():
     def __init__(self, path_list: list) -> None:
@@ -40,11 +39,20 @@ class Calibrator():
         #filter all the dataframes
         # filter the master file         
         # fiter by q_value
-        self.master_file = self.master_file[self.master_file['QValue'] < 0.01 and self.master_file['PEP'] < 0.5 and self.master_file['Ambiguity Level'] == "1" and self.master_file['Decoy/Contaminant/Target'] == PsmType.TARGET.value]
+        self.master_file = self.master_file[self.master_file['QValue'] < 0.01] 
+        self.master_file = self.master_file[self.master_file['PEP'] < 0.5] 
+        self.master_file = self.master_file[self.master_file['Ambiguity Level'] == "1"]
+        self.master_file = self.master_file[self.master_file['Decoy/Contaminant/Target'] == PsmType.TARGET.value]
+        self.master_file = self.master_file.groupby(['File Name', 'Full Sequence']).agg({'Scan Retention Time': 'median'}).reset_index()
 
         # filter the follower files
         for i in range(len(self.follower_files)):
-            self.follower_files[i] = self.follower_files[i][self.follower_files[i]['QValue'] < 0.01 and self.follower_files[i]['PEP'] < 0.5 and self.follower_files[i]['Ambiguity Level'] == "1" and self.follower_files[i]['Decoy/Contaminant/Target'] == PsmType.TARGET.value]
+            self.follower_files[i] = self.follower_files[i][self.follower_files[i]['QValue'] < 0.01]
+            self.follower_files[i] = self.follower_files[i][self.follower_files[i]['PEP'] < 0.5] 
+
+            self.follower_files[i] = self.follower_files[i][self.follower_files[i]['Ambiguity Level'] == "1"] 
+            self.follower_files[i] = self.follower_files[i][self.follower_files[i]['Decoy/Contaminant/Target'] == PsmType.TARGET.value]
+            self.follower_files[i] = self.follower_files[i].groupby(['File Name', 'Full Sequence']).agg({'Scan Retention Time': 'median'}).reset_index()
 
         for i in range(len(self.follower_files)):
             # get anchors and sort them by the master retention time
@@ -58,169 +66,121 @@ class Calibrator():
 
             # Merge both using the outer join
             transformed_dataframe = pd.merge(self.master_file, self.follower_files[i], on='Full Sequence', how='outer')
+
             #make the Transformed Retention Time column
             transformed_dataframe['Transformed Retention Time'] = np.nan
 
-            for i in tqdm(range(len(transformed_dataframe))):
-                if transformed_dataframe.loc[i, ['Scan Retention Time_y']].isnull().any() == False and transformed_dataframe.loc[i, ['Scan Retention Time_x']].isna().any() == False:
-                    X = transformed_dataframe.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
+            for index in tqdm(range(len(transformed_dataframe)), desc="Transforming retention times"):
+                row = transformed_dataframe.iloc[index].to_frame().T
+
+                if row['Scan Retention Time_y'].isnull().values.any() == False and row['Scan Retention Time_x'].isnull().values.any() == False:
+                    X = row['Scan Retention Time_y'].to_numpy().reshape(-1, 1)
                     y = self.linear_regression_model.predict(X)
-                    transformed_dataframe.loc[i, ['Transformed Retention Time']] = y.reshape(-1, 1).astype(float)
+                    transformed_dataframe.loc[index, ['Transformed Retention Time']] = y.reshape(-1).astype(float)
                 
-                elif transformed_dataframe.loc[i, ['Scan Retention Time_y']].isnull().any() == False and transformed_dataframe.loc[i, ['Scan Retention Time_x']].isna().any() == True:
-                    X = transformed_dataframe.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
+                elif row['Scan Retention Time_y'].isnull().values.any() == False and row['Scan Retention Time_x'].isnull().values.any() == True:
+                    X = row['Scan Retention Time_y'].to_numpy().reshape(-1, 1)
                     y = self.linear_regression_model.predict(X)
-                    transformed_dataframe.loc[i, ['Transformed Retention Time']] = y.reshape(-1).astype(float)
+                    transformed_dataframe.loc[index, ['Transformed Retention Time']] = y.reshape(-1).astype(float)
                 
                 else:
-                    transformed_dataframe.loc[i, ['Transformed Retention Time']] = transformed_dataframe.loc[i, ["Scan Retention Time_x"]].to_numpy().reshape(-1).astype(float)
+                    transformed_dataframe.loc[index, ['Transformed Retention Time']] = transformed_dataframe.loc[index, ["Scan Retention Time_x"]].to_numpy().reshape(-1).item()
             
             # get all the unique full sequences with all three retention times
             full_sequences = dict.fromkeys(transformed_dataframe['Full Sequence'].unique(), [])
 
-            logger_list = []
-            
-            # Add your data to the datasplit variable below:
-            datasplit = []
+            for full_seq in tqdm(full_sequences, desc="Updating peptides dictionary"):
+                #get the follower file name
+                file_name = str(self.follower_files[i]['File Name'][0])
 
-            results = pool.map(lambda x: PeptideLogger(x, datasplit), full_sequences.keys())
-            pool.close()
-            pool.join()
+                # get the rows that have the full sequence
+                rows = transformed_dataframe[transformed_dataframe['Full Sequence'] == full_seq]
+                # get the transformed retention time
+                transformed = rows['Transformed Retention Time'].to_numpy().item()
+                # get the retention time x
+                x = rows['Scan Retention Time_x'].to_numpy().item()
+                # get the retention time y
+                y = rows['Scan Retention Time_y'].to_numpy().item()
 
-            # multiprocessing to make the loggers for each peptide
-            with Pool() as pool:
-                logger_list = pool.map(PeptideLogger, )
+                #make the logger object and add it to the dictionary
+                if full_seq not in self.peptide_loggers:
+                    self.peptide_loggers[full_seq] = PeptideLogger(full_seq)
+                    self.peptide_loggers[full_seq].update_file_name_retention_time(file_name, y)
+                    self.peptide_loggers[full_seq].update_transformed_retention_times(file_name, transformed)
+                else:
+                    self.peptide_loggers[full_seq].update_file_name_retention_time(file_name, y)
+                    self.peptide_loggers[full_seq].update_transformed_retention_times(file_name, transformed)
+            break
 
-    def run(self) -> None:
-        for file in tqdm(self.follower_files, desc="Calibrating files"):
-            self.__calibrate(file)
-    
-    def show_properties(self) -> None:
-        print("Path list: ", self.path_list)
-        print("Master file: ", self.master_file)
-        print("Follower files: ", self.follower_files)
-        print("Raw file names: ", len(self.raw_file_names))
-        print("Dataframe dictionary: ", len(self.dataframe_dictionary))
-        print("Calibrated files: ", self.calibrated_files)
-        print("Peptides dictionary: ", self.peptides_dictionary)
-        print("Linear regression model: ", self.linear_regression_model)
+    def show_calibration_plot(self) -> None:
+        plt.clf()
 
-    def __calibrate(self, follower_file: pd.DataFrame) -> None:
-        # # get the median for repeated retention times for both the master and follower file
-        # self.master_file = self.__calculate_median_of_repeated_retention_times(self.master_file)
-        # follower_file = self.__calculate_median_of_repeated_retention_times(follower_file)
-        # filter the files and get anchors
-        anchors = self.get_anchors__inner_join(self.master_file, follower_file)
-        # train model
-        self.__fit_model(anchors['Scan Retention Time_y'].to_numpy().reshape(-1, 1),
-                          anchors['Scan Retention Time_x'].to_numpy().reshape(-1, 1))
-        # Merge both files and get the transformed retention times for the follower file
-        transformed_dataframe = self.__tranform_retention_times(follower_file)
-        # update the peptides dictionary
-        self.__update_peptides_dictionary(transformed_dataframe)
-    
-    def __tranform_retention_times(self, retention_times: pd.DataFrame) -> pd.DataFrame:
-        retention_times = self.__get_anchors_outer_join(self.master_file, retention_times)
-        #make the Transformed Retention Time column
-        retention_times['Transformed Retention Time'] = np.nan
+        retention_times_dataframe = pd.DataFrame(columns=["Full Sequence", "Follower", "Transformed"])
 
-        for i in tqdm(range(len(retention_times))):
-            if retention_times.loc[i, ['Scan Retention Time_y']].isnull().any() == False and \
-                    retention_times.loc[i, ['Scan Retention Time_x']].isna().any() == False:
-                
-                X = retention_times.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
-                y = self.linear_regression_model.predict(X)
-                retention_times.loc[i, ['Transformed Retention Time']] = y.reshape(-1, 1).astype(float)
-            
-            elif retention_times.loc[i, ['Scan Retention Time_y']].isnull().any() == False and \
-                retention_times.loc[i, ['Scan Retention Time_x']].isna().any() == True:
-                X = retention_times.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
-                y = self.linear_regression_model.predict(X)
-                retention_times.loc[i, ['Transformed Retention Time']] = y.reshape(-1).astype(float)
-            
-            else:
-                retention_times.loc[i, ['Transformed Retention Time']] = retention_times.loc[i, ["Scan Retention Time_x"]].to_numpy().reshape(-1).astype(float)
+        for k, v in tqdm(self.peptide_loggers.items(), desc="Updating dataframe for plot"):
+            retention_times_dataframe.loc[-1] = [k, v.get_retention_times(), v.get_transformed_retention_times()]
+            retention_times_dataframe.index = retention_times_dataframe.index + 1
+            retention_times_dataframe = retention_times_dataframe.sort_index()
+
+        #sort the dataframe by the transformed retention time
+        retention_times_dataframe = retention_times_dataframe.sort_values(by='Transformed').reset_index()
+
+        print(retention_times_dataframe.head())
+
+        #plot the values
+        plt.errorbar(range(len(retention_times_dataframe['Follower'])), retention_times_dataframe['Follower'], yerr = 0.8, linestyile = "", c = 'red', label = "Follower")
+        plt.scatter(range(len(retention_times_dataframe['Transformed'])), retention_times_dataframe['Transformed'], s = 0.8, c='blue', label = "Transformed")
+        plt.xlabel("Peptide Index")
+        plt.ylabel("Retention Time")
+        plt.legend()
+        #increase plot size
+        fig = plt.gcf()
+        fig.set_size_inches(18.5, 10.5)
+        # show in the plot how many peptides are in the plot for scatter plot
+        plt.text(0, 200, f"Follower Peptides: {len(retention_times_dataframe.where(retention_times_dataframe['Follower'].notnull()))}", fontsize=12)
+        plt.text(0, 220, f"Transformed Peptides: {len(retention_times_dataframe.where(retention_times_dataframe['Transformed'].notnull()))}", fontsize=12)
+        plt.show()
+        # # # make a list of all the first values in each key in the dictionary
+        # # x = np.array([v.get_retention_times() for k, v in self.peptide_loggers.items()], ndmin=1).reshape(-1)
+        # # make a list of all the second values in each key in the dictionary
+        # y = np.array([v.get_retention_times() for k, v in self.peptide_loggers.items()], ndmin=1).reshape(-1)
+        # # make a list of all the third values in each key in the dictionary
+        # transformed = np.array([v.get_transformed_retention_times() for k, v in self.peptide_loggers.items()], ndmin=1).reshape(-1)
+
+        # print(x.shape, y.shape, transformed.shape)
+
+        # #sort the values by the transformed retention time, moving the x and y values with it 
+        # # x = [x for _, x in sorted(zip(transformed, x))]
+        # y = [y for _, y in sorted(zip(transformed, y))]
+        # transformed = sorted(transformed)
         
-        return retention_times
+        # # print(x.shape, y.shape, transformed.shape)
 
-    def get_calibration_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        calibration_data = pd.DataFrame()
-        calibration_data['Master'] = df['Scan Retention Time_x']
-        calibration_data['Follower'] = df['Scan Retention Time_y']
-        return calibration_data
-    
-    #TODO: Implement this method for the masking of pd.Nan values
-    def __replace_nan_values(self, df: pd.DataFrame) -> pd.DataFrame:
-        pass
-    
-    def __update_peptides_dictionary(self, transformed_data: pd.DataFrame) -> None:
-        full_sequences = dict.fromkeys(transformed_data['Full Sequence'].unique(), [])
-        
-        for i in tqdm(full_sequences, desc="Updating peptides dictionary"):
-            # get the rows that have the full sequence
-            rows = transformed_data[transformed_data['Full Sequence'] == i]
-            # get the transformed retention time
-            transformed = rows['Transformed Retention Time'].values
-            # get the retention time x
-            x = rows['Scan Retention Time_x'].values
-            # get the retention time y
-            y = rows['Scan Retention Time_y'].values
-            #if there is a nan value in the x or y, replace it with 0
-            if np.isnan(x).any() == True:
-                x = 0
-            if np.isnan(y).any() == True:
-                y = 0
-            # add the values to the dictionary
-            full_sequences[i] = [x, y, transformed]
-        
-        self.peptides_dictionary = full_sequences
-
-    def update_loggers(self) -> None:
-        pass
-
-    def __calculate_median_of_repeated_retention_times(self, df: pd.DataFrame) -> pd.DataFrame:
-        # get median of repeated retention times
-        return df.groupby(['File Name', 'Full Sequence']).agg({'Scan Retention Time': 'median'}).reset_index()
-
-    def __get_anchors_outer_join(self, lead_df: pd.DataFrame, follower_df: pd.DataFrame) -> pd.DataFrame:
-        anchors = pd.merge(lead_df, follower_df, on='Full Sequence', how='outer')
-        return anchors
-
-    def get_anchors__inner_join(self, master_df: pd.DataFrame, follower_df: pd.DataFrame) -> pd.DataFrame:
-        # filter data
-        filtered_master_df = self.__filter_file(master_df)
-        filtered_follower_df = self.__filter_file(follower_df)
-        # get anchors
-        anchors = pd.merge(filtered_master_df, filtered_follower_df, on='Full Sequence', how='inner')
-        return anchors
-
-    def __filter_file(self, df: pd.DataFrame) -> pd.DataFrame:
-        # fiter by q_value
-        df = df[df['QValue'] < 0.01]
-        # filter by PEP
-        df = df[df['PEP'] < 0.5]
-        # filter by ambiguity
-        df = df[df['Ambiguity Level'] == "1"]
-        #filter by "Decoy/Contaminant/Target"
-        df = df[df['Decoy/Contaminant/Target'] == PsmType.TARGET.value]
-        return df
-    
-    def __fit_model(self, X: np.ndarray, y: np.ndarray) -> None:
-        self.linear_regression_model.fit(X, y)
+        # # plot the values
+        # # plt.errorbar(range(len(x)), x, linestyle="", c='brown', yerr=0.1, label = "File 1")
+        # plt.errorbar(range(len(y)), y, linestyle="", c='blue', yerr=0.1, label = "File 2")
+        # plt.scatter(range(len(transformed)), transformed, s = 1, c='k', label = "Transformed")
+        # plt.xlabel("Peptide Index")
+        # plt.ylabel("Retention Time")
+        # plt.legend()
+        # #increase plot size
+        # fig = plt.gcf()
+        # fig.set_size_inches(18.5, 10.5)
+        # plt.show()
 
     #TODO: Check how to generalize the sorting of the dictionary
-    def show_plot(self, df: pd.DataFrame) -> None:
+    def show_plot(self) -> None:
         plt.clf()
 
         # sort full peptide discitonary by the transformed retention time
         sorted_full_sequences = {k: v for k, v in sorted(self.peptides_dictionary.items(), key=lambda item: item[1][2])}
 
         # make a list of all the first values in each key in the dictionary
-        x = [v[0] for k, v in sorted_full_sequences.items()]
+        x = np.array([v.get_retention_times() for k, v in sorted_full_sequences.items()], ndmin=1).reshape(-1)
         # make a list of all the second values in each key in the dictionary
-        y = [v[1] for k, v in sorted_full_sequences.items()]
+        y = np.array([v.get_retention_times() for k, v in sorted_full_sequences.items()], ndmin=1)
         # make a list of all the third values in each key in the dictionary
-        transformed = [v[2] for k, v in sorted_full_sequences.items()]
+        transformed = np.array([v.get_transformed_retention_times() for k, v in sorted_full_sequences.items()])
 
         # plot the values
         plt.errorbar(range(len(x)), x, linestyle="", c='brown', yerr=0.1, label = "File 1")
