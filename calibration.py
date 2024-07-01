@@ -6,6 +6,8 @@ from scipy import stats
 from tqdm import tqdm
 from enum import Enum
 from sklearn.base import clone #lets me clone the model parameters, good for tuning parameters and data preprocessing trials
+from logger import PeptideLogger
+from multiprocessing import Pool
 
 class Calibrator():
     def __init__(self, path_list: list) -> None:
@@ -15,17 +17,79 @@ class Calibrator():
         self.raw_file_names = {}
         self.dataframe_dictionary = {}
         self.calibrated_files = pd.DataFrame()
-        self.peptides_dictionary = {}
+        self.peptide_loggers = {}
         self.linear_regression_model = LinearRegression()
 
-        self.prepare_data()
+        self.__prepare_data()
 
-    def prepare_data(self) -> None:
+    def __prepare_data(self) -> None:
         # get the raw file names
-        self.__get_raw_file_names()
-        # set the master file and the follower files
-        self.__set_master_follower()
+        for i, df in enumerate(self.path_list):
+            loaded_dataframe = pd.read_csv(df, sep='\t')
+            # get a list of the file names
+            raw_file_name = loaded_dataframe['File Name'].unique()
+            for file in raw_file_name:
+                #get a dataframe where file name is same as file 
+                self.raw_file_names[file] = loaded_dataframe[loaded_dataframe['File Name'] == file]
+        
+        # get the master file which will be a random dataframe from the raw file names dictionary, master will be removed from the dictionary after being set
+        self.master_file = self.raw_file_names.popitem()[1]
+        # set the follower files
+        self.follower_files = list(self.raw_file_names.values())
 
+        #filter all the dataframes
+        # filter the master file         
+        # fiter by q_value
+        self.master_file = self.master_file[self.master_file['QValue'] < 0.01 and self.master_file['PEP'] < 0.5 and self.master_file['Ambiguity Level'] == "1" and self.master_file['Decoy/Contaminant/Target'] == PsmType.TARGET.value]
+
+        # filter the follower files
+        for i in range(len(self.follower_files)):
+            self.follower_files[i] = self.follower_files[i][self.follower_files[i]['QValue'] < 0.01 and self.follower_files[i]['PEP'] < 0.5 and self.follower_files[i]['Ambiguity Level'] == "1" and self.follower_files[i]['Decoy/Contaminant/Target'] == PsmType.TARGET.value]
+
+        for i in range(len(self.follower_files)):
+            # get anchors and sort them by the master retention time
+            anchors = pd.merge(self.master_file, self.follower_files[i], on='Full Sequence', how='inner').sort_values(by='Scan Retention Time_x')
+
+            # Fit the model
+            X = anchors['Scan Retention Time_y'].to_numpy().reshape(-1, 1)
+            y = anchors['Scan Retention Time_x'].to_numpy().reshape(-1, 1)
+
+            self.linear_regression_model.fit(X, y)
+
+            # Merge both using the outer join
+            transformed_dataframe = pd.merge(self.master_file, self.follower_files[i], on='Full Sequence', how='outer')
+            #make the Transformed Retention Time column
+            transformed_dataframe['Transformed Retention Time'] = np.nan
+
+            for i in tqdm(range(len(transformed_dataframe))):
+                if transformed_dataframe.loc[i, ['Scan Retention Time_y']].isnull().any() == False and transformed_dataframe.loc[i, ['Scan Retention Time_x']].isna().any() == False:
+                    X = transformed_dataframe.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
+                    y = self.linear_regression_model.predict(X)
+                    transformed_dataframe.loc[i, ['Transformed Retention Time']] = y.reshape(-1, 1).astype(float)
+                
+                elif transformed_dataframe.loc[i, ['Scan Retention Time_y']].isnull().any() == False and transformed_dataframe.loc[i, ['Scan Retention Time_x']].isna().any() == True:
+                    X = transformed_dataframe.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
+                    y = self.linear_regression_model.predict(X)
+                    transformed_dataframe.loc[i, ['Transformed Retention Time']] = y.reshape(-1).astype(float)
+                
+                else:
+                    transformed_dataframe.loc[i, ['Transformed Retention Time']] = transformed_dataframe.loc[i, ["Scan Retention Time_x"]].to_numpy().reshape(-1).astype(float)
+            
+            # get all the unique full sequences with all three retention times
+            full_sequences = dict.fromkeys(transformed_dataframe['Full Sequence'].unique(), [])
+
+            logger_list = []
+            
+            # Add your data to the datasplit variable below:
+            datasplit = []
+
+            results = pool.map(lambda x: PeptideLogger(x, datasplit), full_sequences.keys())
+            pool.close()
+            pool.join()
+
+            # multiprocessing to make the loggers for each peptide
+            with Pool() as pool:
+                logger_list = pool.map(PeptideLogger, )
 
     def run(self) -> None:
         for file in tqdm(self.follower_files, desc="Calibrating files"):
@@ -111,6 +175,9 @@ class Calibrator():
         
         self.peptides_dictionary = full_sequences
 
+    def update_loggers(self) -> None:
+        pass
+
     def __calculate_median_of_repeated_retention_times(self, df: pd.DataFrame) -> pd.DataFrame:
         # get median of repeated retention times
         return df.groupby(['File Name', 'Full Sequence']).agg({'Scan Retention Time': 'median'}).reset_index()
@@ -126,22 +193,6 @@ class Calibrator():
         # get anchors
         anchors = pd.merge(filtered_master_df, filtered_follower_df, on='Full Sequence', how='inner')
         return anchors
-    
-    def __set_master_follower(self) -> None:
-        # get the master file which will be a random dataframe from the raw file names dictionary, master will be removed from the dictionary after being set
-        self.master_file = self.raw_file_names.popitem()[1]
-        # set the follower files
-        self.follower_files = list(self.raw_file_names.values())
-
-    def __get_raw_file_names(self) -> None:
-        # get a list of each different file name in the df_list
-        for i, df in enumerate(self.path_list):
-            loaded_dataframe = pd.read_csv(df, sep='\t')
-            # get a list of the file names
-            raw_file_name = loaded_dataframe['File Name'].unique()
-            for file in raw_file_name:
-                #get a dataframe where file name is same as file 
-                self.raw_file_names[file] = loaded_dataframe[loaded_dataframe['File Name'] == file]
 
     def __filter_file(self, df: pd.DataFrame) -> pd.DataFrame:
         # fiter by q_value
@@ -182,13 +233,6 @@ class Calibrator():
         fig = plt.gcf()
         fig.set_size_inches(18.5, 10.5)
         plt.show()
-    
-class RawFile():
-    def __init__(self, dataframe: pd.DataFrame) -> None:
-        self.file_name = dataframe['File Name'].unique()[0]
-        self.dataframe = dataframe
-        self.transformed_dataframe = None
-        self.peptides_dictionary = {}
 
 class PsmType(Enum):
     TARGET = "T"
