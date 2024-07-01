@@ -48,7 +48,8 @@ class Calibrator():
         # filter the files and get anchors
         anchors = self.get_anchors__inner_join(self.master_file, follower_file)
         # train model
-        self.__fit_model(anchors['Scan Retention Time_y'].to_numpy().reshape(-1, 1), anchors['Scan Retention Time_x'].to_numpy().reshape(-1, 1))
+        self.__fit_model(anchors['Scan Retention Time_y'].to_numpy().reshape(-1, 1),
+                          anchors['Scan Retention Time_x'].to_numpy().reshape(-1, 1))
         # Merge both files and get the transformed retention times for the follower file
         transformed_dataframe = self.__tranform_retention_times(follower_file)
         # update the peptides dictionary
@@ -60,18 +61,21 @@ class Calibrator():
         retention_times['Transformed Retention Time'] = np.nan
 
         for i in tqdm(range(len(retention_times))):
-            if retention_times.loc[i, ['Scan Retention Time_y']].isnull().any() == False and retention_times.loc[i, ['Scan Retention Time_x']].isna().any() == False:
+            if retention_times.loc[i, ['Scan Retention Time_y']].isnull().any() == False and \
+                    retention_times.loc[i, ['Scan Retention Time_x']].isna().any() == False:
+                
                 X = retention_times.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
                 y = self.linear_regression_model.predict(X)
                 retention_times.loc[i, ['Transformed Retention Time']] = y.reshape(-1, 1).astype(float)
             
-            elif retention_times.loc[i, ['Scan Retention Time_y']].isnull().any() == False and retention_times.loc[i, ['Scan Retention Time_x']].isna().any() == True:
+            elif retention_times.loc[i, ['Scan Retention Time_y']].isnull().any() == False and \
+                retention_times.loc[i, ['Scan Retention Time_x']].isna().any() == True:
                 X = retention_times.loc[i, ['Scan Retention Time_y']].to_numpy().reshape(-1, 1)
                 y = self.linear_regression_model.predict(X)
                 retention_times.loc[i, ['Transformed Retention Time']] = y.reshape(-1).astype(float)
             
             else:
-                retention_times.loc[i, ['Transformed Retention Time']] = retention_times.loc[i, ["Scan Retention Time_x"]].to_numpy().reshape(-1, 1).astype(float)
+                retention_times.loc[i, ['Transformed Retention Time']] = retention_times.loc[i, ["Scan Retention Time_x"]].to_numpy().reshape(-1).astype(float)
         
         return retention_times
 
@@ -178,7 +182,14 @@ class Calibrator():
         fig = plt.gcf()
         fig.set_size_inches(18.5, 10.5)
         plt.show()
-        
+    
+class RawFile():
+    def __init__(self, dataframe: pd.DataFrame) -> None:
+        self.file_name = dataframe['File Name'].unique()[0]
+        self.dataframe = dataframe
+        self.transformed_dataframe = None
+        self.peptides_dictionary = {}
+
 class PsmType(Enum):
     TARGET = "T"
     DECOY = "D"
