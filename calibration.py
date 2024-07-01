@@ -105,9 +105,11 @@ class Calibrator():
                 #make the logger object and add it to the dictionary
                 if full_seq not in self.peptide_loggers:
                     self.peptide_loggers[full_seq] = PeptideLogger(full_seq)
+                    self.peptide_loggers[full_seq].update_master_file_name_retention_time(file_name, x)
                     self.peptide_loggers[full_seq].update_file_name_retention_time(file_name, y)
                     self.peptide_loggers[full_seq].update_transformed_retention_times(file_name, transformed)
                 else:
+                    self.peptide_loggers[full_seq].update_master_file_name_retention_time(file_name, x)
                     self.peptide_loggers[full_seq].update_file_name_retention_time(file_name, y)
                     self.peptide_loggers[full_seq].update_transformed_retention_times(file_name, transformed)
             break
@@ -115,10 +117,10 @@ class Calibrator():
     def show_calibration_plot(self) -> None:
         plt.clf()
 
-        retention_times_dataframe = pd.DataFrame(columns=["Full Sequence", "Follower", "Transformed"])
+        retention_times_dataframe = pd.DataFrame(columns=["Full Sequence", "Master", "Follower", "Transformed"])
 
         for k, v in tqdm(self.peptide_loggers.items(), desc="Updating dataframe for plot"):
-            retention_times_dataframe.loc[-1] = [k, v.get_retention_times(), v.get_transformed_retention_times()]
+            retention_times_dataframe.loc[-1] = [k, v.get_master_retention_times(), v.get_retention_times(), v.get_transformed_retention_times()]
             retention_times_dataframe.index = retention_times_dataframe.index + 1
             retention_times_dataframe = retention_times_dataframe.sort_index()
 
@@ -128,17 +130,17 @@ class Calibrator():
         print(retention_times_dataframe.head())
 
         #plot the values
-        plt.errorbar(range(len(retention_times_dataframe['Follower'])), retention_times_dataframe['Follower'], yerr = 0.8, linestyile = "", c = 'red', label = "Follower")
-        plt.scatter(range(len(retention_times_dataframe['Transformed'])), retention_times_dataframe['Transformed'], s = 0.8, c='blue', label = "Transformed")
+        plt.errorbar(range(len(retention_times_dataframe['Master'])), retention_times_dataframe['Master'], yerr = 0.3, linestyle = "", c = 'blue', label = "Master")
+        plt.errorbar(range(len(retention_times_dataframe['Follower'])), retention_times_dataframe['Follower'], yerr = 0.3, linestyle = "", c = 'red', label = "Follower")
+        plt.scatter(range(len(retention_times_dataframe['Transformed'])), retention_times_dataframe['Transformed'], s = 1, linestyle = "", c='black', label = "Transformed")
         plt.xlabel("Peptide Index")
         plt.ylabel("Retention Time")
         plt.legend()
         #increase plot size
         fig = plt.gcf()
         fig.set_size_inches(18.5, 10.5)
-        # show in the plot how many peptides are in the plot for scatter plot
-        plt.text(0, 200, f"Follower Peptides: {len(retention_times_dataframe.where(retention_times_dataframe['Follower'].notnull()))}", fontsize=12)
-        plt.text(0, 220, f"Transformed Peptides: {len(retention_times_dataframe.where(retention_times_dataframe['Transformed'].notnull()))}", fontsize=12)
+        #number of peptides
+        plt.text(0, 0, f"Number of Peptides: {len(retention_times_dataframe)}", fontsize=12)
         plt.show()
         # # # make a list of all the first values in each key in the dictionary
         # # x = np.array([v.get_retention_times() for k, v in self.peptide_loggers.items()], ndmin=1).reshape(-1)
