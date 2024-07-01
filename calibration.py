@@ -38,7 +38,6 @@ class Calibrator():
 
         #filter all the dataframes
         # filter the master file         
-        # fiter by q_value
         self.master_file = self.master_file[self.master_file['QValue'] < 0.01] 
         self.master_file = self.master_file[self.master_file['PEP'] < 0.5] 
         self.master_file = self.master_file[self.master_file['Ambiguity Level'] == "1"]
@@ -54,7 +53,7 @@ class Calibrator():
             self.follower_files[i] = self.follower_files[i][self.follower_files[i]['Decoy/Contaminant/Target'] == PsmType.TARGET.value]
             self.follower_files[i] = self.follower_files[i].groupby(['File Name', 'Full Sequence']).agg({'Scan Retention Time': 'median'}).reset_index()
 
-        for i in range(len(self.follower_files)):
+        for i in tqdm(range(len(self.follower_files)), desc="Calibrating file"):
             # get anchors and sort them by the master retention time
             anchors = pd.merge(self.master_file, self.follower_files[i], on='Full Sequence', how='inner').sort_values(by='Scan Retention Time_x')
 
@@ -112,7 +111,6 @@ class Calibrator():
                     self.peptide_loggers[full_seq].update_master_file_name_retention_time(file_name, x)
                     self.peptide_loggers[full_seq].update_file_name_retention_time(file_name, y)
                     self.peptide_loggers[full_seq].update_transformed_retention_times(file_name, transformed)
-            break
 
     def show_calibration_plot(self) -> None:
         plt.clf()
@@ -130,9 +128,9 @@ class Calibrator():
         print(retention_times_dataframe.head())
 
         #plot the values
-        plt.errorbar(range(len(retention_times_dataframe['Master'])), retention_times_dataframe['Master'], yerr = 0.3, linestyle = "", c = 'blue', label = "Master")
-        plt.errorbar(range(len(retention_times_dataframe['Follower'])), retention_times_dataframe['Follower'], yerr = 0.3, linestyle = "", c = 'red', label = "Follower")
-        plt.scatter(range(len(retention_times_dataframe['Transformed'])), retention_times_dataframe['Transformed'], s = 1, linestyle = "", c='black', label = "Transformed")
+        plt.errorbar(range(len(retention_times_dataframe['Master'])), retention_times_dataframe['Master'], yerr = 0.2, linestyle = "", c = 'gray', alpha=0.5, label = "Master")
+        plt.errorbar(range(len(retention_times_dataframe['Follower'])), retention_times_dataframe['Follower'], yerr = 0.2, linestyle = "", c = 'gray', alpha=0.5, label = "Follower")
+        plt.scatter(range(len(retention_times_dataframe['Transformed'])), retention_times_dataframe['Transformed'], s = 0.3, linestyle = "", c='red', label = "Transformed")
         plt.xlabel("Peptide Index")
         plt.ylabel("Retention Time")
         plt.legend()
@@ -140,7 +138,7 @@ class Calibrator():
         fig = plt.gcf()
         fig.set_size_inches(18.5, 10.5)
         #number of peptides
-        plt.text(0, 0, f"Number of Peptides: {len(retention_times_dataframe)}", fontsize=12)
+        plt.text(5000, 0, f"Number of Peptides: {len(retention_times_dataframe)}", fontsize=12)
         plt.show()
         # # # make a list of all the first values in each key in the dictionary
         # # x = np.array([v.get_retention_times() for k, v in self.peptide_loggers.items()], ndmin=1).reshape(-1)
