@@ -26,3 +26,30 @@ class PeptideLogger():
 
     def update_master_file_name_retention_time(self, file_name: str, retention_time: float) -> None:
         self.master_file_name_retention_time[file_name] = retention_time
+
+    def get_file_name_retention_time(self) -> Dict:
+        return self.file_name_retention_time
+    
+    def get_transformed_retention_time(self) -> Dict:
+        return self.transformed_retention_time
+    
+    def get_master_file_name_retention_time(self) -> Dict:
+        return self.master_file_name_retention_time
+    
+    def get_file_names_from_retention_time(self) -> list:
+        return list(self.file_name_retention_time.keys())
+    
+    def get_transformed_file_names_from_retention_time(self) -> list:
+        return list(self.transformed_retention_time.keys())
+    
+class File():
+    def __init__(self) -> None:
+        self.file_name = None
+        self.full_sequence_times = {}
+
+    def make_keys(self, full_sequences: list) -> None:
+        for full_sequence in full_sequences:
+            self.full_sequence_times[full_sequence] = None
+
+    def update_full_sequence_times(self, full_sequence: str, transformed_retention_time:float) -> None:
+        self.full_sequence_times[full_sequence] = transformed_retention_time
