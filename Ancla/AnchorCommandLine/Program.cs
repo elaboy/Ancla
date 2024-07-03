@@ -2,6 +2,7 @@
 using Easy.Common.Interfaces;
 using MathNet.Numerics.Statistics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.ML;
 using mzIdentML110.Generated;
 using Proteomics.PSM;
 using Readers;
@@ -47,8 +48,10 @@ public class FileLogger
 {
     public string FilePath { get; set; }
     public PsmFromTsvFile File { get; set; }
+    public RawFileLogger LeadingRawFile { get; set; }
+    public List<RawFileLogger> FollowingRawFiles = new();
     public Dictionary<string, RawFileLogger> RawFiles = new Dictionary<string, RawFileLogger>();
-    public Dictionary<string, double?> FullSequencesPresentInFile = new Dictionary<string, double?>();
+    public Dictionary<string, List<(string, double?)>> FullSequencesPresentInFile = new Dictionary<string, List<(string, double?)>>();
     public FileLogger(PsmFromTsvFile file)
     {
         File = file;
@@ -66,9 +69,97 @@ public class FileLogger
         List<string> fullSequences = file.Results.Select(p => p.FullSequence)
                                                  .Distinct()
                                                  .ToList();
+        
+        // Retention Times will be initialized as null
+        FullSequencesPresentInFile =
+            fullSequences.ToDictionary(p => p, p => new List<(string, double?)>() { ("Init", (double?)null) });
 
-        FullSequencesPresentInFile = fullSequences.ToDictionary(p => p, p => (double?)null);
+        // pick the leading raw file and set the follower raw files
+        LeadingRawFile = RawFiles.Values.OrderBy(r => r.Psms.Count()).First();
+        FollowingRawFiles = RawFiles.Values.Where(r => r != LeadingRawFile).ToList();
     }
+
+    public void Calibrate()
+    {
+        foreach (var follower in FollowingRawFiles)
+        {
+
+        }
+    }
+
+    private void PairwiseCalibration(RawFileLogger followingRawFile)
+    {
+        // Order the full sequences by retention time
+        var orderedLeaderFullSequences = LeadingRawFile.FullSequenceWithScanRetentionTime
+            .OrderBy(p => p.Value).ToList();
+
+        var orderedFollowerFullSequences = followingRawFile.FullSequenceWithScanRetentionTime
+            .OrderBy(p => p.Value).ToList();
+
+        // Get overlapping peptides between the leading and following raw file
+        var overlappingPeptides = orderedLeaderFullSequences.Select(p => p.Key)
+            .Intersect(orderedFollowerFullSequences.Select(p => p.Key)).ToList();
+
+        // get these full sequences from the leader and follower raw file as an array of doubles
+        var leaderRetentionTimes = overlappingPeptides
+            .Select(p => (orderedLeaderFullSequences.First(x => x.Key.Equals(p)))).ToList();
+
+        var followerRetentionTimes = overlappingPeptides
+            .Select(p => (orderedFollowerFullSequences.First(x => x.Key.Equals(p)))).ToList();
+
+        // assert that the leader and follower retention times are the same length
+        if (leaderRetentionTimes.Count != followerRetentionTimes.Count)
+        {
+            throw new Exception("Leader and follower anchors retention times are not the same length");
+        }
+
+        // use ml.net to train a linear regression model using the leader and follower retention times as training data
+        MLContext mlContext = new MLContext();
+        var data = new List<Anchor>();
+
+        for (int i = 0; i < leaderRetentionTimes.Count; i++)
+        {
+            data.Add(new Anchor
+            {
+                FullSequence = overlappingPeptides[i],
+                LeaderRetentionTime = leaderRetentionTimes[i].Value,
+                FollowerRetentionTime = followerRetentionTimes[i].Value
+            });
+        }
+
+        var dataView = mlContext.Data.LoadFromEnumerable<Anchor>(data);
+
+        var model = mlContext.Regression.Trainers.Sdca("LeaderRetentionTime", "FollowerRetentionTime");
+
+        var modelTrained = model.Fit(dataView);
+
+        // use the model to predict the follower retention times
+        var predictionEngine = mlContext.Model.CreatePredictionEngine<Anchor, AnchorPrediction>(modelTrained);
+
+        foreach (var fullSequence in followingRawFile.FullSequenceWithScanRetentionTime)
+        {
+            var prediction = predictionEngine.Predict(new Anchor
+            {
+                FullSequence = fullSequence.Key,
+                LeaderRetentionTime = fullSequence.Value
+            });
+
+            // update the retention time of the full sequence in the following raw file
+            followingRawFile.FullSequenceWithScanRetentionTime[fullSequence.Key] = prediction.Score;
+        }
+    }
+}
+
+public class Anchor
+{
+    public string FullSequence { get; set; }
+    public double LeaderRetentionTime { get; set; }
+    public double FollowerRetentionTime { get; set; }
+}
+
+public class AnchorPrediction
+{
+    public float Score { get; set; }
 }
 
 public class RawFileLogger
@@ -81,7 +172,7 @@ public class RawFileLogger
         RawFileName = rawFileName;
         // TODO Filter the psms
         Psms = psms.Where(p => p.QValue <= 0.01 & 
-                               p.PEP < 0.5 & 
+                               p.PEP <= 0.5 & 
                                p.AmbiguityLevel == "1" & 
                                p.DecoyContamTarget == "T").ToList();
 
