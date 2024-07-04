@@ -3,6 +3,7 @@ using Easy.Common.Interfaces;
 using MathNet.Numerics.Statistics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.ML;
+using Microsoft.ML.Data;
 using mzIdentML110.Generated;
 using Proteomics.PSM;
 using Readers;
@@ -33,6 +34,7 @@ public class Program
 public class Calibrator
 {
     public Dictionary<string, double> LibraryRetentionTimes = new Dictionary<string, double>();
+    public List<FileLogger> FileLoggers = new List<FileLogger>();
     public Calibrator(string filePath)
     { 
         // read the psmtsv file
@@ -40,7 +42,15 @@ public class Calibrator
         psmtsv.LoadResults();
 
         // make the calibration logger
-        var logger = new FileLogger(psmtsv);
+        FileLoggers.Add(new FileLogger(psmtsv));
+    }
+
+    public void Calibrate()
+    {
+        foreach (var fileLogger in FileLoggers)
+        {
+            fileLogger.Calibrate();
+        }
     }
 }
 
@@ -83,7 +93,7 @@ public class FileLogger
     {
         foreach (var follower in FollowingRawFiles)
         {
-
+            PairwiseCalibration(follower);
         }
     }
 
@@ -122,30 +132,33 @@ public class FileLogger
             data.Add(new Anchor
             {
                 FullSequence = overlappingPeptides[i],
-                LeaderRetentionTime = leaderRetentionTimes[i].Value,
-                FollowerRetentionTime = followerRetentionTimes[i].Value
+                LeaderRetentionTime = (float)leaderRetentionTimes[i].Value,
+                FollowerRetentionTime = (float)followerRetentionTimes[i].Value
             });
         }
 
-        var dataView = mlContext.Data.LoadFromEnumerable<Anchor>(data);
+        var dataView = mlContext.Data.LoadFromEnumerable<Anchor>(data.ToArray());
 
-        var model = mlContext.Regression.Trainers.Sdca("LeaderRetentionTime", "FollowerRetentionTime");
+        var pipeline = mlContext.Transforms
+            .CopyColumns("Label", nameof(Anchor.LeaderRetentionTime))
+            .Append(mlContext.Transforms.Concatenate("Features", nameof(Anchor.FollowerRetentionTime)))
+            .Append(mlContext.Regression.Trainers.Sdca(labelColumnName: "Label", featureColumnName: "Features"));
 
-        var modelTrained = model.Fit(dataView);
+        var model = pipeline.Fit(dataView);
 
         // use the model to predict the follower retention times
-        var predictionEngine = mlContext.Model.CreatePredictionEngine<Anchor, AnchorPrediction>(modelTrained);
+        var predictionEngine = mlContext.Model.CreatePredictionEngine<Anchor, AnchorPrediction>(model);
 
         foreach (var fullSequence in followingRawFile.FullSequenceWithScanRetentionTime)
         {
             var prediction = predictionEngine.Predict(new Anchor
             {
                 FullSequence = fullSequence.Key,
-                LeaderRetentionTime = fullSequence.Value
+                FollowerRetentionTime = (float)fullSequence.Value
             });
 
             // update the retention time of the full sequence in the following raw file
-            followingRawFile.FullSequenceWithScanRetentionTime[fullSequence.Key] = prediction.Score;
+            FullSequencesPresentInFile[fullSequence.Key].Add((followingRawFile.RawFileName, prediction.TransformedRetentionTime));
         }
     }
 }
@@ -153,13 +166,14 @@ public class FileLogger
 public class Anchor
 {
     public string FullSequence { get; set; }
-    public double LeaderRetentionTime { get; set; }
-    public double FollowerRetentionTime { get; set; }
+    public float LeaderRetentionTime { get; set; }
+    public float FollowerRetentionTime { get; set; }
 }
 
 public class AnchorPrediction
 {
-    public float Score { get; set; }
+    [ColumnName("Score")]
+    public float TransformedRetentionTime { get; set; }
 }
 
 public class RawFileLogger
