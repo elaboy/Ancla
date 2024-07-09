@@ -2,6 +2,7 @@
 using Giraffe.ViewEngine;
 using MathNet.Numerics.Statistics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.ML;
 using Microsoft.ML.Data;
 using Proteomics.PSM;
@@ -98,13 +99,9 @@ public class FileLogger
         }
 
         // Get a list of all the full sequences present in the file
-        List<string> fullSequences = file.Results.Select(p => p.FullSequence)
+        FullSequencesPresentInFile = file.Results.Select(p => p.FullSequence)
                                                  .Distinct()
-                                                 .ToList();
-
-        // Retention Times will be initialized as null
-        FullSequencesPresentInFile =
-            fullSequences.ToDictionary(p => p, p => new List<(string, double?)>());
+                                                 .ToDictionary(p => p, p => new List<(string, double?)>());
 
         // pick the leading raw file and set the follower raw files
         LeadingRawFile = RawFiles.Values.OrderBy(r => r.Psms.Count()).First();
@@ -117,6 +114,7 @@ public class FileLogger
         {
             PairwiseCalibration(follower);
         }
+        MergeRawFiles();
     }
 
     private void PairwiseCalibration(RawFileLogger followingRawFile)
@@ -125,18 +123,14 @@ public class FileLogger
         var overlappingFullSequences = LeadingRawFile.FullSequenceWithScanRetentionTime.Keys
             .Intersect(followingRawFile.FullSequenceWithScanRetentionTime.Keys);
 
-        Dictionary<string, (double, double)> overlappingPsms = new();
-
-        foreach (var sequence in overlappingFullSequences)
-        {
-            overlappingPsms.Add(sequence, (LeadingRawFile.FullSequenceWithScanRetentionTime[sequence],
-                followingRawFile.FullSequenceWithScanRetentionTime[sequence]));
-        }
+        Dictionary<string, (double, double)> overlappingPsms = LeadingRawFile.FullSequenceWithScanRetentionTime.Keys
+            .Intersect(followingRawFile.FullSequenceWithScanRetentionTime.Keys)
+            .ToDictionary(p => p, p => (LeadingRawFile.FullSequenceWithScanRetentionTime[p],
+                followingRawFile.FullSequenceWithScanRetentionTime[p]));
 
         // use ml.net to train a linear regression model using the leader and follower retention times as training data
         MLContext mlContext = new MLContext();
         var data = new List<Anchor>();
-
 
         foreach (var overlappingPsm in overlappingPsms)
         {
@@ -189,6 +183,21 @@ public class FileLogger
 
             FileWiseCalibrations[fullSequence.Key].Add((LeadingRawFile.RawFileName + "_OG", fullSequence.Value));
         }
+    }
+
+    private void MergeRawFiles()
+    {
+        var fileWiseCalibrationSwap = new Dictionary<string, List<(string, double)>>();
+
+        // remove FileWiseCalibration keys that have the same tuple item 1 and item 2
+        foreach (var fileWiseCalibration in FileWiseCalibrations)
+        {
+            var uniqueFileNames = fileWiseCalibration.Value.DistinctBy(x => x.Item1).ToList();
+
+            fileWiseCalibrationSwap.Add(fileWiseCalibration.Key, uniqueFileNames);
+        }
+
+        FileWiseCalibrations = fileWiseCalibrationSwap;
     }
 }
 

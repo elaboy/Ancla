@@ -1,4 +1,5 @@
-﻿using Proteomics.PSM;
+﻿using Microsoft.ML;
+using Proteomics.PSM;
 using Readers;
 using SQLitePCL;
 
@@ -49,7 +50,73 @@ public class File
 
     public void PairWiseCalibration(KeyValuePair<string, List<PsmFromTsv>> rawFile)
     {
+        rawFile.Value.OrderBy(x => x.RetentionTime);
+        BaseRawFile.Value.OrderBy(x => x.RetentionTime);
+
         var anchors = rawFile.Value.Intersect(BaseRawFile.Value);
+
+        var sequences = new List<string>();
+        var baseRt = new List<double>();
+        var followerRt = new List<double>();
+
+        foreach (var anchor in anchors)
+        {
+            // get the retention time of the anchor in the base raw file
+            var baseRawFileRetentionTime = BaseRawFile.Value
+                .Where(x => x.FullSequence == anchor.FullSequence)
+                .Select(x => x.RetentionTime)
+                .FirstOrDefault();
+
+            // get the retention time of the anchor in the raw file
+            var rawFileRetentionTime = rawFile.Value
+                .Where(x => x.FullSequence == anchor.FullSequence)
+                .Select(x => x.RetentionTime)
+                .FirstOrDefault();
+
+            sequences.Add(anchor.FullSequence);
+            baseRt.Add(baseRawFileRetentionTime.Value);
+            followerRt.Add(rawFileRetentionTime.Value);
+        }
+
+        // use ml.net to train a linear regression model using the leader and follower retention times as training data
+        MLContext mlContext = new MLContext();
+        var data = new List<Anchor>();
+
+        for (var i = 0; i < baseRt.Count; i++)
+        {
+            data.Add(new Anchor
+            {
+                FullSequence = sequences[i],
+                LeaderRetentionTime = (float)baseRt[i],
+                FollowerRetentionTime = (float)followerRt[i]
+            });
+        }
+
+        var dataView = mlContext.Data.LoadFromEnumerable<Anchor>(data.ToArray());
+
+        var pipeline = mlContext.Transforms
+            .CopyColumns("Label", nameof(Anchor.LeaderRetentionTime))
+            .Append(mlContext.Transforms.Concatenate("Features", nameof(Anchor.FollowerRetentionTime)))
+            .Append(mlContext.Regression.Trainers.Sdca(labelColumnName: "Label", featureColumnName: "Features"));
+
+        var model = pipeline.Fit(dataView);
+
+        // use the model to predict the follower retention times
+        var predictionEngine = mlContext.Model.CreatePredictionEngine<Anchor, AnchorPrediction>(model);
+
+        foreach (var fullSequence in rawFile.Value)
+        {
+            var prediction = predictionEngine.Predict(new Anchor
+            {
+                FullSequence = fullSequence.FullSequence,
+                FollowerRetentionTime = (float)fullSequence.RetentionTime.Value
+            });
+        }
+
+        foreach(var psm in rawFile.Value)
+        {
+
+        }
     }
 }
 
