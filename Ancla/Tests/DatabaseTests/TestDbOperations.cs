@@ -217,7 +217,7 @@ public class TestDbOperations
     #endregion
 
 
-    #region One File at a time to show how CLT reflets on the collection of evidence
+    #region One PsmFile at a time to show how CLT reflets on the collection of evidence
 
     /*
      * This method's purpose is to test how the variance for the same peptide keeps reducing on each
