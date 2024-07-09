@@ -1,4 +1,5 @@
 ﻿using Proteomics.PSM;
+using Readers;
 
 namespace AnchorCommandLine;
 
@@ -7,6 +8,12 @@ public class RawFileLogger
     public string RawFileName { get; set; }
     public IEnumerable<PsmFromTsv> Psms { get; set; }
     public Dictionary<string, double> FullSequenceWithScanRetentionTime = new Dictionary<string, double>();
+
+    public RawFileLogger(PsmFromTsvFile psmFile)
+    {
+
+    }
+
     public RawFileLogger(string rawFileName, IEnumerable<PsmFromTsv> psms)
     {
         RawFileName = rawFileName;

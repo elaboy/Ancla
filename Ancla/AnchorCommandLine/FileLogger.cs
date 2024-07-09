@@ -10,11 +10,9 @@ public class FileLogger
     public PsmFromTsvFile PsmFile { get; set; }
     public RawFileLogger LeadingRawFile { get; set; }
     public List<RawFileLogger> FollowingRawFiles = new();
-    public Dictionary<string, RawFileLogger> RawFiles = new Dictionary<string, RawFileLogger>();
-    public Dictionary<string, List<(string, double?)>> FullSequencesPresentInFile = 
-        new Dictionary<string, List<(string, double?)>>();
-    public Dictionary<string, List<(string fileName, double retentionTime)>> FileWiseCalibrations = 
-        new Dictionary<string, List<(string, double)>>();
+    public Dictionary<string, RawFileLogger> RawFiles = new();
+    public Dictionary<string, List<(string, double?)>> FullSequencesPresentInFile = new();
+    public Dictionary<string, List<(string fileName, double retentionTime)>> FileWiseCalibrations = new();
     public FileLogger(PsmFromTsvFile psmFile)
     {
         PsmFile = psmFile;
@@ -43,7 +41,6 @@ public class FileLogger
         SaveFullSequencesPresentFileWiseAsTSV();
         RemoveAndRecalibrateAllFiles();
         WriteOutput();
-
     }
 
     private void DeleteFileValues(string fileName)
@@ -76,7 +73,10 @@ public class FileLogger
     private void SaveFullSequencesPresentFileWiseAsTSV()
     {
         var grouped = PsmFile.GroupBy(x => x.FullSequence)
-            .ToDictionary(p => p.Key, p => p.DistinctBy(x => x.FileNameWithoutExtension).Select(x => (x.FileNameWithoutExtension, x.RetentionTime.Value)).ToList());
+            .ToDictionary(p => p.Key, p => p
+                .DistinctBy(x => x.FileNameWithoutExtension)
+                .Select(x => (x.FileNameWithoutExtension, x.RetentionTime.Value))
+                .ToList());
 
         List<string> myOutput = new List<string>();
 
@@ -98,12 +98,13 @@ public class FileLogger
         var overlappingFullSequences = FileWiseCalibrations.Keys
             .Intersect(followingRawFile.FullSequenceWithScanRetentionTime.Keys);
 
-        var bubba = FileWiseCalibrations.Where(v => v.Value.Count > 2).ToDictionary(p => p.Key, p => p);
+        var bubba = FileWiseCalibrations.Where(v => v.Value.Count > 2)
+            .ToDictionary(p => p.Key, p => p);
 
         Dictionary<string, (double median, double)> overlappingPsms = bubba.Keys
             .Intersect(followingRawFile.FullSequenceWithScanRetentionTime.Keys)
-            .ToDictionary(p => p, p => (FileWiseCalibrations[p].Select(x => x.retentionTime).Median(),
-                followingRawFile.FullSequenceWithScanRetentionTime[p]));
+            .ToDictionary(p => p, p => (FileWiseCalibrations[p]
+                    .Select(x => x.retentionTime).Median(), followingRawFile.FullSequenceWithScanRetentionTime[p]));
 
         // use ml.net to train a linear regression model using the leader and follower retention times as training data
         MLContext mlContext = new MLContext();
