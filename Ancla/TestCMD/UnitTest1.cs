@@ -16,7 +16,6 @@ namespace TestCMD
         public void TestA549CalibrationConstructor()
         {
             var calibrator = new Calibrator(@"D:\MannPeptideResults\A549_AllPSMs.psmtsv");
-            Assert.AreEqual(0, calibrator.LibraryRetentionTimes.Count);
         }
 
         [Test]

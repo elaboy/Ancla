@@ -76,7 +76,8 @@ public class FileLogger
     private void SaveFullSequencesPresentFileWiseAsTSV()
     {
         var grouped = PsmFile.GroupBy(x => x.FullSequence)
-            .ToDictionary(p => p.Key, p => p.DistinctBy(x => x.FileNameWithoutExtension).Select(x => (x.FileNameWithoutExtension, x.RetentionTime.Value)).ToList());
+            .ToDictionary(p => p.Key, p => p
+                .DistinctBy(x => x.FileNameWithoutExtension).Select(x => (x.FileNameWithoutExtension, x.RetentionTime.Value)).ToList());
 
         List<string> myOutput = new List<string>();
 
@@ -98,7 +99,9 @@ public class FileLogger
         var overlappingFullSequences = FileWiseCalibrations.Keys
             .Intersect(followingRawFile.FullSequenceWithScanRetentionTime.Keys);
 
-        var bubba = FileWiseCalibrations.Where(v => v.Value.Count > 2).ToDictionary(p => p.Key, p => p);
+        var bubba = FileWiseCalibrations
+            .Where(v => v.Value.Count > 2)
+            .ToDictionary(p => p.Key, p => p);
 
         Dictionary<string, (double median, double)> overlappingPsms = bubba.Keys
             .Intersect(followingRawFile.FullSequenceWithScanRetentionTime.Keys)
