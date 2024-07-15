@@ -1,17 +1,15 @@
 ﻿using Easy.Common.Extensions;
-using MathNet.Numerics.Statistics;
 using Microsoft.ML;
 using Microsoft.ML.Data;
 using MzLibUtil;
 using Omics.SpectrumMatch;
 using Proteomics.PSM;
 using Readers;
-using System.Linq;
 
 namespace AnchorCommandLine.RetentionTime;
 public class Harmonizer
 {
-    public IEnumerable<IRetentionTimeHarmonizer> AllSpeciesInAllFiles { get; set; }
+    public List<IRetentionTimeHarmonizer> AllSpeciesInAllFiles { get; set; }
 
     public Dictionary<string, List<IRetentionTimeHarmonizer>> FilesInHarmonizer = new();
 
@@ -23,7 +21,7 @@ public class Harmonizer
 
         // group by FileName 
         var files = AllSpeciesInAllFiles
-            .GroupBy(x => x.FileName);
+            .GroupBy(x => x.FileName).ToList();
 
         // populates FilesInHarmonizer (foreach FileName there is a List of IRetentionTimeHarmonizer
         foreach (var file in files)
@@ -36,21 +34,12 @@ public class Harmonizer
         FilesInHarmonizer = FilesInHarmonizer.OrderByDescending(x => x.Value.Count)
             .ToDictionary(p => p.Key, p => p.Value);
 
-        // Get all identifiers that are going to be harmonized and add them to HarmonizedSpecies
-        var allSequencesPresent = AllSpeciesInAllFiles
-            .DistinctBy(x => x.Identifier);
-
-        //allSequencesPresent.ForEach(x => HarmonizedSpecies.Add(x.Identifier, new Dictionary<string, double>()));
-
         // Add all from the first file
         var firstLeader = FilesInHarmonizer.First();
 
-        //// add the identifiers
-        //firstLeader.Value.ForEach(x=> HarmonizedSpecies.Add(x.Identifier, new Dictionary<string, double>()));
-
         foreach (var identifier in firstLeader.Value)
         {
-            if(HarmonizedSpecies.ContainsKey(identifier.Identifier))
+            if (HarmonizedSpecies.ContainsKey(identifier.Identifier))
                 HarmonizedSpecies[identifier.Identifier].Add(firstLeader.Key, identifier.RetentionTime);
             else
             {
@@ -65,46 +54,64 @@ public class Harmonizer
             InitialPairWiseCalibration(file.Key);
     }
 
-    public void Calibrate(int epochs = 10, int minimumAnchors = 2)
+    public void Calibrate(int epochs = 1, int minimumAnchors = 2)
     {
-        for (int i = 0; i < epochs; i++)
+        for (int epoch = 0; epoch < epochs; epoch++)
         {
             foreach (var file in FilesInHarmonizer.Keys)
             {
                 var anchorsAvailable = HarmonizedSpecies
-                    .Where(x => x.Value.Count > minimumAnchors)
-                    .Select(x => x.Key);
+                    .Where(x => x.Value.Count >= minimumAnchors)
+                    .Select(x => x.Key).ToList();
 
                 // pop out the file to re-calibrate
                 var toCalibrate = HarmonizedSpecies
-                    .Where(x => x.Value.ContainsKey(file))
+                    .Where(x => x.Value.ContainsKey(file) &
+                                anchorsAvailable.Contains(x.Key))
                     .ToDictionary(p => p.Key, p => p.Value);
 
                 //removes the popped out file from the Harmonized Species
                 HarmonizedSpecies.ForEach(x => x.Value.Remove(file));
 
                 // get anchors
-                Dictionary<string, (float anchorRetentionTime, float retentionTime)> anchors = anchorsAvailable
-                    .Intersect(toCalibrate
-                        .Select(x => x.Key))
-                    .ToDictionary(x => x, x => (HarmonizedSpecies[x]
-                .Select(x => (float)x.Value).Median(), toCalibrate
-                .Select(x => (float)x.Value.First().Value).First()));
+                var filesInteresected = HarmonizedSpecies.Keys
+                    .Intersect(FilesInHarmonizer[file]
+                        .Select(x => x.Identifier)).ToList();
 
-                // make the anchors PreCalibratedObjects
-                List<PreCalibratedSequence> preCalibratedSequences = new();
+                var anchors1 = filesInteresected
+                    .SelectMany(x => HarmonizedSpecies[x]
+                        .Select(p => p.Value)).ToList();
+
+                var anchors2 = filesInteresected
+                    .SelectMany(x => FilesInHarmonizer[file]
+                        .Select(x => x.RetentionTime)).ToList();
+
+                var anchors = new Dictionary<string, (float anchorRetentionTime, float retentionTime)>();
+
+                for (int i = 0; i < filesInteresected.Count(); i++)
+                {
+                    anchors.Add(filesInteresected.ElementAt(i), ((float)anchors1.ElementAt(i), (float)anchors2.ElementAt(i)));
+                }
 
                 var predictionEngine = MakePipeline(anchors);
 
                 foreach (var unCalibratedFollowerSpecies in toCalibrate)
                 {
-                    var prediction = predictionEngine.Predict(new PreCalibratedSequence()
+                    if (unCalibratedFollowerSpecies.Value.Count == 0)
+                        continue;
+
+                    CalibratedSequence prediction = predictionEngine.Predict(new PreCalibratedSequence()
                     {
                         FullSequence = unCalibratedFollowerSpecies.Key,
                         UnCalibratedRetentionTime = (float)unCalibratedFollowerSpecies.Value.First().Value
                     });
-
-                    HarmonizedSpecies[unCalibratedFollowerSpecies.Key].Add(file, prediction.CalibratedRetentionTime);
+                    if (HarmonizedSpecies.Keys.Contains(unCalibratedFollowerSpecies.Key))
+                        HarmonizedSpecies[unCalibratedFollowerSpecies.Key].Add(file, prediction.CalibratedRetentionTime);
+                    else
+                    {
+                        HarmonizedSpecies.Add(unCalibratedFollowerSpecies.Key, new Dictionary<string, double>());
+                        HarmonizedSpecies[unCalibratedFollowerSpecies.Key].Add(file, prediction.CalibratedRetentionTime);
+                    }
                 }
             }
         }
@@ -131,8 +138,11 @@ public class Harmonizer
 
         // Make the model pipeline
         var pipeline = mlContext.Transforms
-            .CopyColumns("Label", nameof(PreCalibratedSequence.AnchorRetentionTime))
-            .Append(mlContext.Transforms.Concatenate("Features", nameof(PreCalibratedSequence.UnCalibratedRetentionTime)))
+            .CopyColumns("Label", 
+                nameof(PreCalibratedSequence.AnchorRetentionTime))
+            .Append(mlContext.Transforms
+                .Concatenate("Features", 
+                    nameof(PreCalibratedSequence.UnCalibratedRetentionTime)))
             .Append(mlContext.Regression.Trainers.Ols("Label", "Features"));
 
         // train the model
@@ -148,18 +158,24 @@ public class Harmonizer
     {
 
         var filesInteresected = HarmonizedSpecies.Keys
-            .Intersect(FilesInHarmonizer[followerFile].Select(x => x.Identifier)).ToList();
+            .Intersect(FilesInHarmonizer[followerFile]
+                .Select(x => x.Identifier)).ToList();
 
         var anchors1 = filesInteresected
-            .SelectMany(x => HarmonizedSpecies[x].Select(p => p.Value)).ToList();
+            .SelectMany(x => HarmonizedSpecies[x]
+                .Select(p => p.Value)).ToList();
 
-        var anchors2 = filesInteresected.SelectMany(x => FilesInHarmonizer[followerFile].Select(x => x.RetentionTime)).ToList();
+        var anchors2 = filesInteresected
+            .SelectMany(x => FilesInHarmonizer[followerFile]
+                .Select(x => x.RetentionTime)).ToList();
 
         var anchors = new Dictionary<string, (float anchorRetentionTime, float retentionTime)>();
 
         for (int i = 0; i < filesInteresected.Count(); i++)
         {
-            anchors.Add(filesInteresected.ElementAt(i), ((float)anchors1.ElementAt(i), (float)anchors2.ElementAt(i)));
+            anchors.Add(filesInteresected.ElementAt(i),
+                ((float)anchors1.ElementAt(i),
+                    (float)anchors2.ElementAt(i)));
         }
 
         var predictionEngine = MakePipeline(anchors);
@@ -171,12 +187,14 @@ public class Harmonizer
                 FullSequence = unCalibratedFollowerSpecies.Identifier,
                 UnCalibratedRetentionTime = (float)unCalibratedFollowerSpecies.RetentionTime
             });
-            if(HarmonizedSpecies.ContainsKey(unCalibratedFollowerSpecies.Identifier))
-                HarmonizedSpecies[unCalibratedFollowerSpecies.Identifier].Add(followerFile, prediction.CalibratedRetentionTime);
+            if (HarmonizedSpecies.ContainsKey(unCalibratedFollowerSpecies.Identifier))
+                HarmonizedSpecies[unCalibratedFollowerSpecies.Identifier].Add(followerFile,
+                    prediction.CalibratedRetentionTime);
             else
             {
                 HarmonizedSpecies.Add(unCalibratedFollowerSpecies.Identifier, new Dictionary<string, double>());
-                HarmonizedSpecies[unCalibratedFollowerSpecies.Identifier].Add(unCalibratedFollowerSpecies.FileName, prediction.CalibratedRetentionTime);
+                HarmonizedSpecies[unCalibratedFollowerSpecies.Identifier].Add(unCalibratedFollowerSpecies.FileName,
+                    prediction.CalibratedRetentionTime);
             }
         }
     }
