@@ -84,12 +84,12 @@ public class Harmonizer
                 HarmonizedSpecies.ForEach(x => x.Value.Remove(file));
 
                 // get anchors
-                Dictionary<string, (double anchorRetentionTime, double retentionTime)> anchors = anchorsAvailable
+                Dictionary<string, (float anchorRetentionTime, float retentionTime)> anchors = anchorsAvailable
                     .Intersect(toCalibrate
                         .Select(x => x.Key))
                     .ToDictionary(x => x, x => (HarmonizedSpecies[x]
-                .Select(x => x.Value).Median(), toCalibrate
-                .Select(x => x.Value.First().Value).First()));
+                .Select(x => (float)x.Value).Median(), toCalibrate
+                .Select(x => (float)x.Value.First().Value).First()));
 
                 // make the anchors PreCalibratedObjects
                 List<PreCalibratedSequence> preCalibratedSequences = new();
@@ -110,7 +110,7 @@ public class Harmonizer
         }
     }
 
-    public PredictionEngine<PreCalibratedSequence, CalibratedSequence> MakePipeline(Dictionary<string, (double anchorRetentionTime, double retentionTime)> anchors)
+    public PredictionEngine<PreCalibratedSequence, CalibratedSequence> MakePipeline(Dictionary<string, (float anchorRetentionTime, float retentionTime)> anchors)
     {
         MLContext mlContext = new MLContext();
 
@@ -131,8 +131,8 @@ public class Harmonizer
 
         // Make the model pipeline
         var pipeline = mlContext.Transforms
-            .CopyColumns("Label", nameof(PreCalibratedSequence.UnCalibratedRetentionTime))
-            .Append(mlContext.Transforms.Concatenate("Features", nameof(PreCalibratedSequence.AnchorRetentionTime)))
+            .CopyColumns("Label", nameof(PreCalibratedSequence.AnchorRetentionTime))
+            .Append(mlContext.Transforms.Concatenate("Features", nameof(PreCalibratedSequence.UnCalibratedRetentionTime)))
             .Append(mlContext.Regression.Trainers.Ols("Label", "Features"));
 
         // train the model
@@ -148,29 +148,25 @@ public class Harmonizer
     {
 
         var filesInteresected = HarmonizedSpecies.Keys
-            .Intersect(FilesInHarmonizer[followerFile].Select(x => x.Identifier));
+            .Intersect(FilesInHarmonizer[followerFile].Select(x => x.Identifier)).ToList();
 
         var anchors1 = filesInteresected
-            .SelectMany(x => HarmonizedSpecies[x].Select(p => p.Value));
+            .SelectMany(x => HarmonizedSpecies[x].Select(p => p.Value)).ToList();
 
-        var anchors2 = filesInteresected.SelectMany(x => FilesInHarmonizer[followerFile].Select(x => x.RetentionTime));
+        var anchors2 = filesInteresected.SelectMany(x => FilesInHarmonizer[followerFile].Select(x => x.RetentionTime)).ToList();
 
-        var anchors = new Dictionary<string, (double anchorRetentionTime, double retentionTime)>();
+        var anchors = new Dictionary<string, (float anchorRetentionTime, float retentionTime)>();
 
         for (int i = 0; i < filesInteresected.Count(); i++)
         {
-            anchors.Add(filesInteresected.ElementAt(i), (anchors1.ElementAt(i), anchors2.ElementAt(i)));
+            anchors.Add(filesInteresected.ElementAt(i), ((float)anchors1.ElementAt(i), (float)anchors2.ElementAt(i)));
         }
-
-        //var intersect = HarmonizedSpecies.Keys.Intersect(FilesInHarmonizer[followerFile].Select(x => x.Identifier));
-
-        //Dictionary<string, (double median, )>
 
         var predictionEngine = MakePipeline(anchors);
 
         foreach (var unCalibratedFollowerSpecies in FilesInHarmonizer[followerFile])
         {
-            var prediction = predictionEngine.Predict(new PreCalibratedSequence()
+            CalibratedSequence prediction = predictionEngine.Predict(new PreCalibratedSequence()
             {
                 FullSequence = unCalibratedFollowerSpecies.Identifier,
                 UnCalibratedRetentionTime = (float)unCalibratedFollowerSpecies.RetentionTime
@@ -208,6 +204,7 @@ public class Psm : PsmFromTsv, IRetentionTimeHarmonizer
 
 public class PreCalibratedSequence
 {
+    [NoColumn]
     public string FullSequence { get; set; }
     public float AnchorRetentionTime { get; set; }
     public float UnCalibratedRetentionTime { get; set; }
@@ -216,7 +213,7 @@ public class PreCalibratedSequence
 public class CalibratedSequence
 {
     [ColumnName("Score")]
-    public float CalibratedRetentionTime { get; }
+    public float CalibratedRetentionTime { get; set; }
 }
 public static class PsmFromTsvReader
 {
