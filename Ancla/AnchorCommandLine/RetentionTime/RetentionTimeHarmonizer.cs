@@ -6,6 +6,7 @@ using MzLibUtil;
 using Omics.SpectrumMatch;
 using Proteomics.PSM;
 using Readers;
+using System.Linq;
 
 namespace AnchorCommandLine.RetentionTime;
 public class Harmonizer
@@ -130,8 +131,8 @@ public class Harmonizer
 
         // Make the model pipeline
         var pipeline = mlContext.Transforms
-            .CopyColumns("Label", nameof(PreCalibratedSequence.AnchorRetentionTime))
-            .Append(mlContext.Transforms.Concatenate("Features", nameof(PreCalibratedSequence.UnCalibratedRetentionTime)))
+            .CopyColumns("Label", nameof(PreCalibratedSequence.UnCalibratedRetentionTime))
+            .Append(mlContext.Transforms.Concatenate("Features", nameof(PreCalibratedSequence.AnchorRetentionTime)))
             .Append(mlContext.Regression.Trainers.Ols("Label", "Features"));
 
         // train the model
@@ -145,16 +146,25 @@ public class Harmonizer
 
     private void InitialPairWiseCalibration(string followerFile)
     {
-        Dictionary<string, (double median, double retentionTime)> anchors = HarmonizedSpecies.Keys
-            .Intersect(FilesInHarmonizer[followerFile]
-                .Select(x => x.Identifier))
-            .ToDictionary(x => x, x => (HarmonizedSpecies[x]
-                .Select(p => p.Value).Median(), FilesInHarmonizer[followerFile]
-                .Select(e => e.RetentionTime).Median()));
 
-        var intersect = HarmonizedSpecies.Keys.Intersect(FilesInHarmonizer[followerFile].Select(x => x.Identifier));
+        var filesInteresected = HarmonizedSpecies.Keys
+            .Intersect(FilesInHarmonizer[followerFile].Select(x => x.Identifier));
 
-        Dictionary<string, (double median, )>
+        var anchors1 = filesInteresected
+            .SelectMany(x => HarmonizedSpecies[x].Select(p => p.Value));
+
+        var anchors2 = filesInteresected.SelectMany(x => FilesInHarmonizer[followerFile].Select(x => x.RetentionTime));
+
+        var anchors = new Dictionary<string, (double anchorRetentionTime, double retentionTime)>();
+
+        for (int i = 0; i < filesInteresected.Count(); i++)
+        {
+            anchors.Add(filesInteresected.ElementAt(i), (anchors1.ElementAt(i), anchors2.ElementAt(i)));
+        }
+
+        //var intersect = HarmonizedSpecies.Keys.Intersect(FilesInHarmonizer[followerFile].Select(x => x.Identifier));
+
+        //Dictionary<string, (double median, )>
 
         var predictionEngine = MakePipeline(anchors);
 
